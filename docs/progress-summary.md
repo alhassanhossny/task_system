@@ -33,6 +33,11 @@ The repository now contains:
 - Per-company SMTP settings with encrypted password storage.
 - BullMQ email queue infrastructure.
 - Search index, approval workflow, tags, and user preference tables.
+- Tenant isolation integration test for users, tasks, and emails.
+- Storage provider abstraction for attachment file metadata.
+- Domain event bus foundation for activity, notification, audit, and search publishing.
+- Email provider and search indexer abstractions.
+- Versioned API routes under `/api/v1`.
 
 ## Recent Fixes
 
@@ -47,6 +52,7 @@ The repository now contains:
   - Mobile: viewport-safe full-width dropdown below the header.
   - Supports outside click and Escape key closing.
 - Added Phase 1.5 database migration and API modules for reusable pre-Phase-2 infrastructure.
+- Added pre-Phase-2 hardening for tenant isolation, permission matrix, queues, storage, events, email provider, search indexer, and API v1 routing.
 
 ## Local Testing
 
@@ -56,6 +62,7 @@ Current development URLs:
 - Web English login: `http://localhost:3000/en/login`
 - Arabic dashboard: `http://localhost:3000/ar/dashboard`
 - API docs: `http://localhost:4000/docs`
+- API base: `http://localhost:4000/api/v1`
 
 Seed login:
 
@@ -69,6 +76,7 @@ Validation run successfully:
 ```bash
 corepack pnpm typecheck
 corepack pnpm lint
+corepack pnpm test:tenant-isolation
 ```
 
 ## Phase 2 Not Started
@@ -93,3 +101,4 @@ Recent completed commits:
 - `a7db484 Suppress extension body hydration noise`
 - `7727e57 Replace notifications drawer with dropdown`
 - Add Phase 1.5 reusable infrastructure
+- Add pre-Phase-2 architecture safeguards

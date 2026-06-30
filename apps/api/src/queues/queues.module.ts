@@ -1,8 +1,10 @@
 import { BullModule } from "@nestjs/bullmq";
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
+import { EmailQueue } from "./email.queue";
+import { NotificationQueue } from "./notification.queue";
 import { QUEUE_NAMES } from "./queue.constants";
-import { EmailQueueService } from "./email-queue.service";
+import { SearchQueue } from "./search.queue";
 
 @Module({
   imports: [
@@ -20,9 +22,15 @@ import { EmailQueueService } from "./email-queue.service";
     }),
     BullModule.registerQueue({
       name: QUEUE_NAMES.email
+    }),
+    BullModule.registerQueue({
+      name: QUEUE_NAMES.notification
+    }),
+    BullModule.registerQueue({
+      name: QUEUE_NAMES.search
     })
   ],
-  providers: [EmailQueueService],
-  exports: [BullModule, EmailQueueService]
+  providers: [EmailQueue, NotificationQueue, SearchQueue],
+  exports: [BullModule, EmailQueue, NotificationQueue, SearchQueue]
 })
 export class QueuesModule {}

@@ -12,17 +12,21 @@ import { RolesGuard } from "./common/guards/roles.guard";
 import { TenantGuard } from "./common/guards/tenant.guard";
 import { CompaniesModule } from "./companies/companies.module";
 import { DepartmentsModule } from "./departments/departments.module";
+import { DomainEventsModule } from "./domain-events/domain-events.module";
+import { EmailProvidersModule } from "./email-providers/email-providers.module";
 import { HealthModule } from "./health/health.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { QueuesModule } from "./queues/queues.module";
 import { RolesModule } from "./roles/roles.module";
+import { SearchModule } from "./search/search.module";
 import { SmtpSettingsModule } from "./smtp-settings/smtp-settings.module";
 import { UsersModule } from "./users/users.module";
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    DomainEventsModule,
     PrismaModule,
     HealthModule,
     AuthModule,
@@ -36,7 +40,9 @@ import { UsersModule } from "./users/users.module";
     CommentsModule,
     NotificationsModule,
     SmtpSettingsModule,
-    QueuesModule
+    QueuesModule,
+    EmailProvidersModule,
+    SearchModule
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

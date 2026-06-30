@@ -40,7 +40,18 @@ const permissionSeeds = [
   ["read", "tags", "Read tags"],
   ["write", "tags", "Create and update tags"],
   ["read", "user_preferences", "Read user preferences"],
-  ["write", "user_preferences", "Create and update user preferences"]
+  ["write", "user_preferences", "Create and update user preferences"],
+  ["read", "tasks", "Read tasks"],
+  ["create", "tasks", "Create tasks"],
+  ["update", "tasks", "Update tasks"],
+  ["assign", "tasks", "Assign tasks"],
+  ["complete", "tasks", "Complete tasks"],
+  ["read", "leave_requests", "Read leave requests"],
+  ["submit", "leave_requests", "Submit leave requests"],
+  ["approve", "leave_requests", "Approve leave requests"],
+  ["read", "emails", "Read emails"],
+  ["send", "emails", "Send emails"],
+  ["manage", "email_templates", "Manage email templates"]
 ] as const;
 
 const tenantRoleSeeds = [
@@ -48,6 +59,61 @@ const tenantRoleSeeds = [
   [SystemRole.MANAGER, "Manager", "Department and team management"],
   [SystemRole.EMPLOYEE, "Employee", "Employee self-service access"]
 ] as const;
+
+const permissionKey = (action: string, subject: string) => `${subject}:${action}`;
+
+const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
+  [SystemRole.SUPER_ADMIN]: ["*"],
+  [SystemRole.COMPANY_ADMIN]: ["*"],
+  [SystemRole.MANAGER]: [
+    "users:read",
+    "departments:read",
+    "activities:read",
+    "attachments:read",
+    "attachments:write",
+    "comments:read",
+    "comments:write",
+    "notifications:read",
+    "notifications:write",
+    "search:read",
+    "approval_workflows:read",
+    "tags:read",
+    "tags:write",
+    "user_preferences:read",
+    "user_preferences:write",
+    "tasks:read",
+    "tasks:create",
+    "tasks:update",
+    "tasks:assign",
+    "tasks:complete",
+    "leave_requests:read",
+    "leave_requests:approve",
+    "emails:read",
+    "emails:send"
+  ],
+  [SystemRole.EMPLOYEE]: [
+    "users:read",
+    "departments:read",
+    "activities:read",
+    "attachments:read",
+    "attachments:write",
+    "comments:read",
+    "comments:write",
+    "notifications:read",
+    "notifications:write",
+    "search:read",
+    "tags:read",
+    "user_preferences:read",
+    "user_preferences:write",
+    "tasks:read",
+    "tasks:create",
+    "tasks:update",
+    "leave_requests:read",
+    "leave_requests:submit",
+    "emails:read",
+    "emails:send"
+  ]
+};
 
 async function seedCompany(company: {
   id: string;
@@ -93,23 +159,8 @@ async function linkRolePermissions(companyId: string) {
   const permissions = await prisma.permission.findMany({ where: { companyId } });
 
   for (const role of roles) {
-    const allowed = permissions.filter((permission) => {
-      if (role.systemName === SystemRole.SUPER_ADMIN || role.systemName === SystemRole.COMPANY_ADMIN) {
-        return true;
-      }
-
-      if (role.systemName === SystemRole.MANAGER) {
-        return (
-          permission.action === "read" ||
-          ["users", "departments", "activities", "attachments", "comments", "notifications", "search", "tags", "user_preferences"].includes(permission.subject)
-        );
-      }
-
-      return (
-        permission.action === "read" &&
-        ["users", "departments", "activities", "attachments", "comments", "notifications", "search", "tags", "user_preferences"].includes(permission.subject)
-      );
-    });
+    const allowedKeys = new Set(rolePermissionMatrix[role.systemName]);
+    const allowed = permissions.filter((permission) => allowedKeys.has("*") || allowedKeys.has(permissionKey(permission.action, permission.subject)));
 
     for (const permission of allowed) {
       await prisma.rolePermission.upsert({

@@ -79,9 +79,17 @@ Before implementing Tasks, Leave Requests, or Email Center, the foundation adds 
 - `tags`, `entity_tags`: generic tagging for tasks and future entities.
 - `user_preferences`: user-specific language, theme, sidebar, and dashboard settings.
 
-The API exposes foundation endpoints for attachments, comments, notifications, and SMTP settings. Search, workflow, tags, and preferences are modeled now so Phase 2 modules can use the same schema instead of introducing module-specific duplicates.
+The API exposes versioned foundation endpoints under `/api/v1` for attachments, comments, notifications, and SMTP settings. Search, workflow, tags, and preferences are modeled now so Phase 2 modules can use the same schema instead of introducing module-specific duplicates.
 
-Redis and BullMQ are included before Email Center so outbound mail can be queued instead of sent synchronously from request handlers. The initial queue module registers an `email` queue and an `EmailQueueService`; the actual SMTP worker belongs to the Email Center phase.
+Redis and BullMQ are included before Email Center so outbound mail can be queued instead of sent synchronously from request handlers. The queue foundation includes `email.queue.ts`, `notification.queue.ts`, and `search.queue.ts`; the actual SMTP worker belongs to the Email Center phase.
+
+Attachments are routed through a `StorageProvider` contract. The current local provider normalizes file keys and can return public URLs, while future S3 or MinIO providers can replace it without changing attachment service logic.
+
+Domain changes should publish through `DomainEventBus` instead of directly calling activities, notifications, audit logs, or search indexing from every feature service. Phase 2 modules can publish one event such as `task.created`, then subscribers can fan out activity, notification, audit, and search effects.
+
+Email delivery is behind an `EmailProvider` contract with an `SmtpProvider` implementation shell. This keeps future Microsoft Graph, SendGrid, or Amazon SES providers out of core Email Center logic.
+
+Modules should write to search through `SearchIndexer`, not directly to `search_index`, so the implementation can move later to PostgreSQL full text search, Meilisearch, or Elasticsearch.
 
 ## Frontend
 

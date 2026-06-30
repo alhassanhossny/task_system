@@ -19,7 +19,7 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
     headers.set("x-company-id", options.companyId);
   }
 
-  const response = await fetch(`${API_URL}/api${path}`, {
+  const response = await fetch(`${API_URL}/api/v1${path}`, {
     ...options,
     headers
   });

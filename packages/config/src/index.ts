@@ -35,7 +35,18 @@ export const permissions = {
   tagsRead: "tags:read",
   tagsWrite: "tags:write",
   userPreferencesRead: "user_preferences:read",
-  userPreferencesWrite: "user_preferences:write"
+  userPreferencesWrite: "user_preferences:write",
+  tasksRead: "tasks:read",
+  tasksCreate: "tasks:create",
+  tasksUpdate: "tasks:update",
+  tasksAssign: "tasks:assign",
+  tasksComplete: "tasks:complete",
+  leaveRequestsRead: "leave_requests:read",
+  leaveRequestsSubmit: "leave_requests:submit",
+  leaveRequestsApprove: "leave_requests:approve",
+  emailsRead: "emails:read",
+  emailsSend: "emails:send",
+  emailTemplatesManage: "email_templates:manage"
 } as const;
 
 export const tenantHeader = "x-company-id";

@@ -31,7 +31,7 @@ pnpm dev
 
 Web: `http://localhost:3000/ar/login`
 
-API: `http://localhost:4000/api`
+API: `http://localhost:4000/api/v1`
 
 Swagger: `http://localhost:4000/docs`
 

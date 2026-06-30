@@ -14,7 +14,7 @@ async function bootstrap() {
     credentials: true
   });
 
-  app.setGlobalPrefix("api");
+  app.setGlobalPrefix("api/v1");
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -25,7 +25,7 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle("TASK Flow API")
-    .setDescription("Phase 1 multi-tenant SaaS foundation API")
+    .setDescription("Versioned multi-tenant SaaS foundation API")
     .setVersion("0.1.0")
     .addBearerAuth()
     .addApiKey({ type: "apiKey", in: "header", name: "x-company-id" }, "tenant")
