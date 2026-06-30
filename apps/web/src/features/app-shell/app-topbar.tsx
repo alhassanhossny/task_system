@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/features/auth/auth-store";
 import type { Lang, UiText } from "@/features/prototype/types";
 import { pageTitleFromPath } from "./nav";
-import { NotificationDrawer } from "./notification-drawer";
+import { NotificationDropdown } from "./notification-dropdown";
 
 export function AppTopbar({
   t,
@@ -95,13 +95,18 @@ export function AppTopbar({
           {lang === "ar" ? "EN" : "عربي"}
         </button>
 
-        <button
-          onClick={() => setNotifOpen(true)}
-          className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground relative"
-        >
-          <Bell className="w-4.5 h-4.5" />
-          <span className="absolute top-2 end-2 w-1.5 h-1.5 bg-red-500 rounded-full ring-1 ring-card" />
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setNotifOpen((open) => !open)}
+            aria-expanded={notifOpen}
+            aria-haspopup="dialog"
+            className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground relative"
+          >
+            <Bell className="w-4.5 h-4.5" />
+            <span className="absolute top-2 end-2 w-1.5 h-1.5 bg-red-500 rounded-full ring-1 ring-card" />
+          </button>
+          <NotificationDropdown open={notifOpen} onClose={() => setNotifOpen(false)} t={t} lang={lang} />
+        </div>
 
         <button
           onClick={logout}
@@ -112,7 +117,6 @@ export function AppTopbar({
         </button>
       </div>
 
-      <NotificationDrawer open={notifOpen} onClose={() => setNotifOpen(false)} t={t} lang={lang} />
     </header>
   );
 }
