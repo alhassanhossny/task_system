@@ -1,7 +1,8 @@
 export const QUEUE_NAMES = {
   email: "email",
   notification: "notification",
-  search: "search"
+  search: "search",
+  taskReminder: "task-reminder"
 } as const;
 
 export const EMAIL_JOB_NAMES = {
@@ -14,4 +15,9 @@ export const NOTIFICATION_JOB_NAMES = {
 
 export const SEARCH_JOB_NAMES = {
   indexEntity: "index-entity"
+} as const;
+
+export const TASK_REMINDER_JOB_NAMES = {
+  scanDueSoon: "scan-due-soon",
+  scanOverdue: "scan-overdue"
 } as const;

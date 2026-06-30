@@ -46,7 +46,12 @@ export const permissions = {
   tasksComplete: "tasks:complete",
   leaveRequestsRead: "leave_requests:read",
   leaveRequestsSubmit: "leave_requests:submit",
+  leaveRequestsUpdate: "leave_requests:update",
+  leaveRequestsCancel: "leave_requests:cancel",
   leaveRequestsApprove: "leave_requests:approve",
+  leaveRequestsReject: "leave_requests:reject",
+  leaveTypesRead: "leave_types:read",
+  leaveTypesWrite: "leave_types:write",
   emailsRead: "emails:read",
   emailsSend: "emails:send",
   emailTemplatesManage: "email_templates:manage"

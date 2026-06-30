@@ -1,4 +1,4 @@
-import { PrismaClient, CompanyPlan, CompanyStatus, EntityType, Locale, SystemRole, TaskPriority, TaskStatus, UserStatus } from "@prisma/client";
+import { PrismaClient, CompanyPlan, CompanyStatus, EntityType, LeaveStatus, Locale, SystemRole, TaskPriority, TaskStatus, UserStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -51,7 +51,12 @@ const permissionSeeds = [
   ["complete", "tasks", "Complete tasks"],
   ["read", "leave_requests", "Read leave requests"],
   ["submit", "leave_requests", "Submit leave requests"],
+  ["update", "leave_requests", "Update leave requests"],
+  ["cancel", "leave_requests", "Cancel leave requests"],
   ["approve", "leave_requests", "Approve leave requests"],
+  ["reject", "leave_requests", "Reject leave requests"],
+  ["read", "leave_types", "Read leave types"],
+  ["write", "leave_types", "Create and update leave types"],
   ["read", "emails", "Read emails"],
   ["send", "emails", "Send emails"],
   ["manage", "email_templates", "Manage email templates"]
@@ -94,6 +99,9 @@ const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
     "tasks:complete",
     "leave_requests:read",
     "leave_requests:approve",
+    "leave_requests:reject",
+    "leave_types:read",
+    "leave_types:write",
     "emails:read",
     "emails:send"
   ],
@@ -119,6 +127,9 @@ const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
     "tasks:complete",
     "leave_requests:read",
     "leave_requests:submit",
+    "leave_requests:update",
+    "leave_requests:cancel",
+    "leave_types:read",
     "emails:read",
     "emails:send"
   ]
@@ -302,6 +313,64 @@ async function seedTask(input: {
   return task;
 }
 
+async function seedLeaveType(companyId: string, input: { name: string; code: string; description?: string; isPaid?: boolean; annualAllowanceDays?: number }) {
+  return prisma.leaveType.upsert({
+    where: { companyId_code: { companyId, code: input.code } },
+    update: {
+      name: input.name,
+      description: input.description,
+      isPaid: input.isPaid ?? true,
+      annualAllowanceDays: input.annualAllowanceDays,
+      isActive: true,
+      deletedAt: null
+    },
+    create: {
+      companyId,
+      name: input.name,
+      code: input.code,
+      description: input.description,
+      isPaid: input.isPaid ?? true,
+      annualAllowanceDays: input.annualAllowanceDays
+    }
+  });
+}
+
+async function seedDefaultLeaveWorkflow(companyId: string) {
+  const [managerRole, companyAdminRole] = await Promise.all([
+    prisma.role.findUniqueOrThrow({ where: { companyId_systemName: { companyId, systemName: SystemRole.MANAGER } } }),
+    prisma.role.findUniqueOrThrow({ where: { companyId_systemName: { companyId, systemName: SystemRole.COMPANY_ADMIN } } })
+  ]);
+  const existing = await prisma.approvalWorkflow.findFirst({
+    where: { companyId, entityType: EntityType.LEAVE_REQUEST, deletedAt: null }
+  });
+  const workflow = existing
+    ? await prisma.approvalWorkflow.update({
+        where: { id: existing.id },
+        data: { name: "Default Leave Request Approval", isActive: true }
+      })
+    : await prisma.approvalWorkflow.create({
+        data: {
+          companyId,
+          entityType: EntityType.LEAVE_REQUEST,
+          name: "Default Leave Request Approval",
+          description: "Employee to manager to company admin approval path"
+        }
+      });
+
+  await prisma.approvalStep.upsert({
+    where: { companyId_workflowId_stepOrder: { companyId, workflowId: workflow.id, stepOrder: 1 } },
+    update: { name: "Manager Approval", approverRoleId: managerRole.id, approverUserId: null, deletedAt: null },
+    create: { companyId, workflowId: workflow.id, stepOrder: 1, name: "Manager Approval", approverRoleId: managerRole.id }
+  });
+  await prisma.approvalStep.upsert({
+    where: { companyId_workflowId_stepOrder: { companyId, workflowId: workflow.id, stepOrder: 2 } },
+    update: { name: "Company Admin Approval", approverRoleId: companyAdminRole.id, approverUserId: null, deletedAt: null },
+    create: { companyId, workflowId: workflow.id, stepOrder: 2, name: "Company Admin Approval", approverRoleId: companyAdminRole.id }
+  });
+
+  return workflow;
+}
+
 async function main() {
   const passwordHash = await bcrypt.hash("Password123!", 10);
 
@@ -480,6 +549,84 @@ async function main() {
     estimatedHours: 6,
     actualHours: 6
   });
+
+  const annualLeave = await seedLeaveType(ids.advancedTech, {
+    name: "إجازة سنوية",
+    code: "ANNUAL",
+    description: "رصيد الإجازات السنوية المدفوعة",
+    annualAllowanceDays: 21
+  });
+  await seedLeaveType(ids.advancedTech, {
+    name: "إجازة مرضية",
+    code: "SICK",
+    description: "الإجازات المرضية المدعومة بتقرير طبي",
+    annualAllowanceDays: 14
+  });
+  await seedLeaveType(ids.advancedTech, {
+    name: "إجازة طارئة",
+    code: "EMERGENCY",
+    description: "إجازات الظروف الطارئة",
+    annualAllowanceDays: 5
+  });
+  await seedLeaveType(ids.advancedTech, {
+    name: "إجازة بدون راتب",
+    code: "UNPAID",
+    description: "إجازة غير مدفوعة",
+    isPaid: false
+  });
+  const leaveWorkflow = await seedDefaultLeaveWorkflow(ids.advancedTech);
+  const seededLeave = await prisma.leaveRequest.upsert({
+    where: { id: "00000000-0000-4000-8000-000000004101" },
+    update: {
+      leaveTypeId: annualLeave.id,
+      leaveType: annualLeave.name,
+      status: LeaveStatus.PENDING,
+      startsAt: new Date("2026-07-14T00:00:00.000Z"),
+      endsAt: new Date("2026-07-16T23:59:59.000Z"),
+      reason: "طلب إجازة سنوية مجدولة",
+      deletedAt: null
+    },
+    create: {
+      id: "00000000-0000-4000-8000-000000004101",
+      companyId: ids.advancedTech,
+      employeeId: ids.employee,
+      departmentId: ids.hrDept,
+      leaveTypeId: annualLeave.id,
+      leaveType: annualLeave.name,
+      startsAt: new Date("2026-07-14T00:00:00.000Z"),
+      endsAt: new Date("2026-07-16T23:59:59.000Z"),
+      reason: "طلب إجازة سنوية مجدولة",
+      status: LeaveStatus.PENDING
+    }
+  });
+  const leaveSteps = await prisma.approvalStep.findMany({
+    where: { companyId: ids.advancedTech, workflowId: leaveWorkflow.id, deletedAt: null },
+    orderBy: { stepOrder: "asc" }
+  });
+  for (const step of leaveSteps) {
+    const existingAction = await prisma.approvalAction.findFirst({
+      where: {
+        companyId: ids.advancedTech,
+        workflowId: leaveWorkflow.id,
+        stepId: step.id,
+        entityType: EntityType.LEAVE_REQUEST,
+        entityId: seededLeave.id,
+        deletedAt: null
+      }
+    });
+
+    if (!existingAction) {
+      await prisma.approvalAction.create({
+        data: {
+          companyId: ids.advancedTech,
+          workflowId: leaveWorkflow.id,
+          stepId: step.id,
+          entityType: EntityType.LEAVE_REQUEST,
+          entityId: seededLeave.id
+        }
+      });
+    }
+  }
 
   await prisma.auditLog.create({
     data: {

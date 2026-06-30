@@ -5,6 +5,7 @@ import { EmailQueue } from "./email.queue";
 import { NotificationQueue } from "./notification.queue";
 import { QUEUE_NAMES } from "./queue.constants";
 import { SearchQueue } from "./search.queue";
+import { TaskReminderQueue } from "./task-reminder.queue";
 
 @Module({
   imports: [
@@ -28,9 +29,12 @@ import { SearchQueue } from "./search.queue";
     }),
     BullModule.registerQueue({
       name: QUEUE_NAMES.search
+    }),
+    BullModule.registerQueue({
+      name: QUEUE_NAMES.taskReminder
     })
   ],
-  providers: [EmailQueue, NotificationQueue, SearchQueue],
-  exports: [BullModule, EmailQueue, NotificationQueue, SearchQueue]
+  providers: [EmailQueue, NotificationQueue, SearchQueue, TaskReminderQueue],
+  exports: [BullModule, EmailQueue, NotificationQueue, SearchQueue, TaskReminderQueue]
 })
 export class QueuesModule {}

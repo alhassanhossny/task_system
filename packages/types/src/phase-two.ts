@@ -1,9 +1,19 @@
 export type TaskStatus = "NEW" | "ASSIGNED" | "IN_PROGRESS" | "PENDING" | "COMPLETED" | "CANCELLED";
 export type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled";
+export type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
 export type EmailDirection = "inbound" | "outbound";
 export type EntityType = "TASK" | "EMAIL" | "LEAVE_REQUEST" | "EMPLOYEE" | "USER" | "DEPARTMENT" | "COMPANY" | "CLIENT";
-export type NotificationType = "TASK_ASSIGNED" | "TASK_COMPLETED" | "TASK_DUE_SOON" | "LEAVE_SUBMITTED" | "LEAVE_APPROVED" | "EMAIL_SENT" | "SYSTEM";
+export type NotificationType =
+  | "TASK_ASSIGNED"
+  | "TASK_COMPLETED"
+  | "TASK_DUE_SOON"
+  | "TASK_OVERDUE"
+  | "LEAVE_SUBMITTED"
+  | "LEAVE_APPROVED"
+  | "LEAVE_REJECTED"
+  | "LEAVE_CANCELLED"
+  | "EMAIL_SENT"
+  | "SYSTEM";
 export type SmtpEncryption = "NONE" | "STARTTLS" | "SSL_TLS";
 export type ApprovalActionStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
 export type ThemePreference = "SYSTEM" | "LIGHT" | "DARK";
@@ -22,7 +32,7 @@ export interface TaskDraft {
 export interface LeaveRequestDraft {
   companyId: string;
   employeeId: string;
-  leaveType: string;
+  leaveTypeId: string;
   startsAt: string;
   endsAt: string;
   status: LeaveStatus;

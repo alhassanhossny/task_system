@@ -33,6 +33,12 @@ export class TasksController {
     return this.tasksService.findOne(tenantId, id);
   }
 
+  @RequirePermissions(PERMISSIONS.tasksRead)
+  @Get(":id/history")
+  history(@TenantId() tenantId: string, @Param("id") id: string) {
+    return this.tasksService.history(tenantId, id);
+  }
+
   @RequirePermissions(PERMISSIONS.tasksCreate)
   @Post()
   create(@TenantId() tenantId: string, @CurrentUser() user: RequestUser, @Body() dto: CreateTaskDto) {

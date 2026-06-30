@@ -13,6 +13,15 @@ import { UpdateTaskStatusDto } from "./dto/update-task-status.dto";
 import { UpdateTaskWatchersDto } from "./dto/update-task-watchers.dto";
 import { UpdateTaskDto } from "./dto/update-task.dto";
 
+const ALLOWED_TASK_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
+  [TaskStatus.NEW]: [TaskStatus.ASSIGNED, TaskStatus.CANCELLED],
+  [TaskStatus.ASSIGNED]: [TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED],
+  [TaskStatus.IN_PROGRESS]: [TaskStatus.PENDING, TaskStatus.COMPLETED, TaskStatus.CANCELLED],
+  [TaskStatus.PENDING]: [TaskStatus.IN_PROGRESS, TaskStatus.COMPLETED, TaskStatus.CANCELLED],
+  [TaskStatus.COMPLETED]: [],
+  [TaskStatus.CANCELLED]: []
+};
+
 @Injectable()
 export class TasksService {
   constructor(
@@ -199,7 +208,12 @@ export class TasksService {
   }
 
   async updateStatus(companyId: string, actorId: string, id: string, dto: UpdateTaskStatusDto) {
-    await this.ensureTask(companyId, id);
+    const existing = await this.ensureTask(companyId, id);
+
+    if (existing.status !== dto.status && !ALLOWED_TASK_TRANSITIONS[existing.status].includes(dto.status)) {
+      throw new BadRequestException(`Invalid task status transition from ${existing.status} to ${dto.status}`);
+    }
+
     const completed = dto.status === TaskStatus.COMPLETED;
 
     const task = await this.prisma.task.update({
@@ -221,6 +235,43 @@ export class TasksService {
     });
 
     return task;
+  }
+
+  async history(companyId: string, id: string) {
+    await this.ensureTask(companyId, id);
+
+    const [activities, comments, attachments] = await Promise.all([
+      this.prisma.activity.findMany({
+        where: {
+          companyId,
+          deletedAt: null,
+          metadata: {
+            path: ["taskId"],
+            equals: id
+          }
+        },
+        orderBy: { createdAt: "desc" },
+        include: {
+          actor: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          }
+        }
+      }),
+      this.commentsService.findByEntity(companyId, EntityType.TASK, id),
+      this.attachmentsService.findByEntity(companyId, EntityType.TASK, id)
+    ]);
+
+    return {
+      activities,
+      comments,
+      attachments,
+      statusChanges: activities.filter((activity) => activity.type === "TASK_COMPLETED" || activity.type === "TASK_UPDATED"),
+      assignments: activities.filter((activity) => activity.type === "TASK_ASSIGNED")
+    };
   }
 
   async softDelete(companyId: string, actorId: string, id: string) {

@@ -15,6 +15,7 @@ import { DepartmentsModule } from "./departments/departments.module";
 import { DomainEventsModule } from "./domain-events/domain-events.module";
 import { EmailProvidersModule } from "./email-providers/email-providers.module";
 import { HealthModule } from "./health/health.module";
+import { LeaveRequestsModule } from "./leave-requests/leave-requests.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { QueuesModule } from "./queues/queues.module";
@@ -44,7 +45,8 @@ import { UsersModule } from "./users/users.module";
     QueuesModule,
     EmailProvidersModule,
     SearchModule,
-    TasksModule
+    TasksModule,
+    LeaveRequestsModule
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

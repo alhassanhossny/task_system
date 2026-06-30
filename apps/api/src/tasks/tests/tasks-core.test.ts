@@ -135,6 +135,11 @@ async function main() {
     });
     assert.equal(attachment.filePath, "task-core/brief.pdf");
 
+    const inProgress = await tasksService.updateStatus(company.id, creator.id, created.id, {
+      status: TaskStatus.IN_PROGRESS
+    });
+    assert.equal(inProgress.status, TaskStatus.IN_PROGRESS);
+
     const completed = await tasksService.updateStatus(company.id, creator.id, created.id, {
       status: TaskStatus.COMPLETED,
       actualHours: 2
@@ -182,7 +187,7 @@ async function main() {
         }
       });
 
-      return Boolean(searchEntry?.deletedAt) && activityCount >= 8;
+      return Boolean(searchEntry?.deletedAt) && activityCount >= 9;
     });
 
     console.log("Task core assertions passed for workflow, collaboration, events, notifications, and search.");

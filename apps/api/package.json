@@ -9,6 +9,7 @@
     "start:prod": "node dist/main.js",
     "test:tenant-isolation": "tsx src/common/tests/tenant-isolation.test.ts",
     "test:tasks-core": "tsx src/tasks/tests/tasks-core.test.ts",
+    "test:leave-requests-core": "tsx src/leave-requests/tests/leave-requests-core.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
     "format": "prettier --write \"src/**/*.ts\" \"../../prisma/**/*.ts\"",

@@ -49,9 +49,23 @@ export class TaskEventsHandler implements OnModuleInit, OnModuleDestroy {
     const task = await this.prisma.task.findFirst({
       where: { id: event.entityId, companyId: event.companyId },
       include: {
+        department: {
+          select: {
+            name: true,
+            code: true
+          }
+        },
         assignees: {
           where: { deletedAt: null },
-          select: { userId: true }
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
         },
         watchers: {
           where: { deletedAt: null },
@@ -99,7 +113,17 @@ export class TaskEventsHandler implements OnModuleInit, OnModuleDestroy {
         entityType: EntityType.TASK,
         entityId: task.id,
         title: `${task.taskNumber} ${task.title}`,
-        content: [task.taskNumber, task.title, task.description].filter(Boolean).join("\n")
+        content: [
+          task.taskNumber,
+          task.title,
+          task.description,
+          task.department?.name,
+          task.department?.code,
+          ...task.assignees.map((assignee) => assignee.user.name),
+          ...task.assignees.map((assignee) => assignee.user.email)
+        ]
+          .filter(Boolean)
+          .join("\n")
       });
     }
 

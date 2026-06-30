@@ -4,14 +4,13 @@ Last updated: 2026-06-30
 
 ## Current Status
 
-Phase 1 foundation and the Phase 1.5 architecture safeguards are implemented for the TASK Flow SaaS monorepo. Phase 2A Task Core is now implemented across the API, database, frontend list view, and Kanban view.
+Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, and Phase 2B Leave Requests Core are implemented. The project now has two production-style business workflows using the shared SaaS infrastructure.
 
 Current Git state:
 
-- Branch: `feature/tasks-module`
-- Commit: `f351a40 Implement Phase 2A task core`
-- Remote tracking branch: `origin/feature/tasks-module`
-- Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature/tasks-module`
+- Branch: `feature/leave-requests`
+- Base branch `main` includes merged Phase 2A through `56ef8d5 Update Phase 2A progress summary`.
+- Pending branch goal: Phase 2B Leave Requests Core.
 
 The repository now contains:
 
@@ -82,6 +81,64 @@ The repository now contains:
 - Added frontend task API service, task list filters, task detail panel, comments, attachments, status changes, create/edit modal, and Kanban data loading.
 - Fixed auth-store session hydration by moving `localStorage` reads into a client effect.
 
+## Implemented Phase 2A Hardening
+
+- Added task status transition rules:
+  - `NEW -> ASSIGNED`
+  - `ASSIGNED -> IN_PROGRESS`
+  - `IN_PROGRESS -> PENDING | COMPLETED`
+  - `PENDING -> IN_PROGRESS | COMPLETED`
+  - terminal states cannot be moved back without a future reopen action.
+- Added `GET /api/v1/tasks/:id/history`.
+- Enriched task search indexing with assignee names, assignee emails, and department data.
+- Added BullMQ task reminder queue scaffold for due-soon and overdue scans.
+- Added `TASK_OVERDUE` notification enum support.
+
+## Implemented Phase 2B Leave Requests Core
+
+- Added `leave_types` table and seeded company leave types:
+  - Annual
+  - Sick
+  - Emergency
+  - Unpaid
+- Extended leave requests with:
+  - `leave_type_id`
+  - `submitted_at`
+  - `approved_at`
+  - `rejected_at`
+  - `cancelled_at`
+- Added reusable `ApprovalWorkflowsService`.
+- Added default leave approval path:
+  - Manager approval
+  - Company Admin approval
+- Added NestJS Leave Requests module with endpoints for:
+  - leave types
+  - list/detail/history
+  - submit
+  - update pending requests
+  - approve
+  - reject
+  - cancel
+  - comments
+  - attachments
+- Added leave-specific permissions:
+  - `leave_requests:read`
+  - `leave_requests:submit`
+  - `leave_requests:update`
+  - `leave_requests:cancel`
+  - `leave_requests:approve`
+  - `leave_requests:reject`
+  - `leave_types:read`
+  - `leave_types:write`
+- Added leave event subscriber for activities, audit logs, notifications, and search indexing.
+- Added notification support for:
+  - `LEAVE_SUBMITTED`
+  - `LEAVE_APPROVED`
+  - `LEAVE_REJECTED`
+  - `LEAVE_CANCELLED`
+- Replaced static Leave Requests UI with API-backed filters, request modal, approval/rejection actions, and detail timeline.
+- Added `test:leave-requests-core` regression coverage.
+
 ## Recent Fixes
 
 - Added locale root redirects:
@@ -97,6 +154,7 @@ The repository now contains:
 - Added Phase 1.5 database migration and API modules for reusable pre-Phase-2 infrastructure.
 - Added pre-Phase-2 hardening for tenant isolation, permission matrix, queues, storage, events, email provider, search indexer, and API v1 routing.
 - Implemented Phase 2A Task Core backend and frontend.
+- Implemented Phase 2B Leave Requests Core backend and frontend.
 
 ## Local Testing
 
@@ -107,6 +165,8 @@ Current development URLs:
 - Arabic dashboard: `http://localhost:3000/ar/dashboard`
 - Arabic task list: `http://localhost:3000/ar/tasks/list`
 - Arabic Kanban: `http://localhost:3000/ar/tasks/kanban`
+- Arabic leave requests: `http://localhost:3000/ar/leaves`
+- English leave requests: `http://localhost:3000/en/leaves`
 - API docs: `http://localhost:4000/docs`
 - API base: `http://localhost:4000/api/v1`
 
@@ -124,33 +184,40 @@ corepack pnpm typecheck
 corepack pnpm lint
 corepack pnpm test:tenant-isolation
 corepack pnpm test:tasks-core
+corepack pnpm test:leave-requests-core
 ```
 
 Additional local smoke checks completed:
 
 - Authenticated seed admin login against `http://localhost:4000/api/v1/auth/login`.
 - Authenticated `GET /api/v1/tasks`, returning 3 seeded tenant tasks.
+- Authenticated `GET /api/v1/leave-types`, returning 4 seeded leave types.
+- Authenticated `GET /api/v1/leave-requests`, returning 1 seeded pending leave request.
 - Web route checks returned HTTP 200:
   - `/ar/tasks/list`
   - `/ar/tasks/kanban`
   - `/en/tasks/list`
   - `/en/tasks/kanban`
+  - `/ar/leaves`
+  - `/en/leaves`
 
-## Remaining Phase 2 Work
+## Remaining Work
 
-The following modules should be implemented after Phase 2A approval:
+The following modules should be implemented after Phase 2B approval:
 
 - Task refinements:
   - richer multi-assignee editing
   - drag-and-drop Kanban status changes
-  - queue-driven due-soon reminders
+  - reminder queue processors for due-soon and overdue notifications
   - uploaded binary file handling beyond attachment metadata
+- Leave request refinements:
+  - configurable workflow editor UI
+  - leave balance tracking
+  - calendar availability view
 - Email center backend implementation.
-- Leave requests backend implementation.
 - SMTP email worker and delivery status processing.
 - Real company switcher behavior for Super Admin users.
 - Real global search.
-- Real approval workflow execution for leave requests.
 
 ## Git Progress
 
@@ -164,3 +231,4 @@ Recent completed commits:
 - `3fe4d84 Add Phase 1.5 reusable infrastructure`
 - `8db5bbc Add pre-Phase-2 architecture safeguards`
 - `f351a40 Implement Phase 2A task core`
+- Phase 2B Leave Requests Core pending commit on `feature/leave-requests`
