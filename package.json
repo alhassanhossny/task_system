@@ -1,0 +1,23 @@
+{
+  "name": "taskflow-saas",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "corepack pnpm --parallel --filter @taskflow/web --filter @taskflow/api dev",
+    "dev:web": "corepack pnpm --filter @taskflow/web dev",
+    "dev:api": "corepack pnpm --filter @taskflow/api dev",
+    "build": "corepack pnpm -r build",
+    "typecheck": "corepack pnpm -r typecheck",
+    "lint": "corepack pnpm -r lint",
+    "format": "corepack pnpm -r format",
+    "db:generate": "corepack pnpm --filter @taskflow/api prisma:generate",
+    "db:migrate": "corepack pnpm --filter @taskflow/api prisma:migrate",
+    "db:seed": "corepack pnpm --filter @taskflow/api prisma:seed"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2"
+  }
+}

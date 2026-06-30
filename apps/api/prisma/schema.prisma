@@ -1,0 +1,395 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Locale {
+  AR @map("ar")
+  EN @map("en")
+
+  @@map("locale")
+}
+
+enum CompanyPlan {
+  STARTER      @map("starter")
+  PROFESSIONAL @map("professional")
+  ENTERPRISE   @map("enterprise")
+
+  @@map("company_plan")
+}
+
+enum CompanyStatus {
+  ACTIVE    @map("active")
+  TRIAL     @map("trial")
+  SUSPENDED @map("suspended")
+
+  @@map("company_status")
+}
+
+enum UserStatus {
+  ACTIVE    @map("active")
+  INACTIVE  @map("inactive")
+  INVITED   @map("invited")
+  SUSPENDED @map("suspended")
+
+  @@map("user_status")
+}
+
+enum SystemRole {
+  SUPER_ADMIN
+  COMPANY_ADMIN
+  MANAGER
+  EMPLOYEE
+
+  @@map("system_role")
+}
+
+enum TaskStatus {
+  NEW         @map("new")
+  ASSIGNED    @map("assigned")
+  IN_PROGRESS @map("in_progress")
+  PENDING     @map("pending")
+  COMPLETED   @map("completed")
+  CANCELLED   @map("cancelled")
+
+  @@map("task_status")
+}
+
+enum TaskPriority {
+  LOW      @map("low")
+  MEDIUM   @map("medium")
+  HIGH     @map("high")
+  CRITICAL @map("critical")
+
+  @@map("task_priority")
+}
+
+enum LeaveStatus {
+  PENDING   @map("pending")
+  APPROVED  @map("approved")
+  REJECTED  @map("rejected")
+  CANCELLED @map("cancelled")
+
+  @@map("leave_status")
+}
+
+enum EmailDirection {
+  INBOUND  @map("inbound")
+  OUTBOUND @map("outbound")
+
+  @@map("email_direction")
+}
+
+model Company {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String
+  slug          String        @unique
+  plan          CompanyPlan   @default(STARTER)
+  status        CompanyStatus @default(TRIAL)
+  defaultLocale Locale        @default(AR) @map("default_locale")
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?     @map("deleted_at") @db.Timestamptz(6)
+
+  users           User[]
+  departments     Department[]
+  roles           Role[]
+  permissions     Permission[]
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+  auditLogs       AuditLog[]
+  activities      Activity[]
+  refreshTokens   RefreshToken[]
+  tasks           Task[]
+  taskAssignees   TaskAssignee[]
+  leaveRequests   LeaveRequest[]
+  emailMessages   EmailMessage[]
+
+  @@map("companies")
+}
+
+model User {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String     @map("company_id") @db.Uuid
+  departmentId String?    @map("department_id") @db.Uuid
+  email        String
+  passwordHash String     @map("password_hash")
+  name         String
+  jobTitle     String?    @map("job_title")
+  locale       Locale     @default(AR)
+  status       UserStatus @default(INVITED)
+  lastLoginAt  DateTime?  @map("last_login_at") @db.Timestamptz(6)
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime?  @map("deleted_at") @db.Timestamptz(6)
+
+  company            Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  department         Department?    @relation("DepartmentUsers", fields: [departmentId], references: [id], onDelete: SetNull)
+  managedDepartments Department[]   @relation("DepartmentManager")
+  userRoles          UserRole[]
+  auditLogs          AuditLog[]
+  activities         Activity[]
+  refreshTokens      RefreshToken[]
+  createdTasks       Task[]         @relation("TaskCreator")
+  assignedTasks      TaskAssignee[]
+  leaveRequests      LeaveRequest[]
+  sentEmails         EmailMessage[] @relation("EmailSender")
+
+  @@unique([companyId, email])
+  @@index([companyId])
+  @@index([departmentId])
+  @@map("users")
+}
+
+model Role {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String     @map("company_id") @db.Uuid
+  name        String
+  systemName  SystemRole @map("system_name")
+  description String?
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime?  @map("deleted_at") @db.Timestamptz(6)
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@unique([companyId, systemName])
+  @@index([companyId])
+  @@map("roles")
+}
+
+model Permission {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  action      String
+  subject     String
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  rolePermissions RolePermission[]
+
+  @@unique([companyId, action, subject])
+  @@index([companyId])
+  @@map("permissions")
+}
+
+model UserRole {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String    @map("company_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  roleId    String    @map("role_id") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role    Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId, roleId])
+  @@index([companyId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  roleId       String    @map("role_id") @db.Uuid
+  permissionId String    @map("permission_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, roleId, permissionId])
+  @@index([companyId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model Department {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  managerId   String?   @map("manager_id") @db.Uuid
+  name        String
+  code        String
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company       Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  manager       User?   @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
+  users         User[]  @relation("DepartmentUsers")
+  tasks         Task[]
+  leaveRequests LeaveRequest[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([managerId])
+  @@map("departments")
+}
+
+model AuditLog {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId  String    @map("company_id") @db.Uuid
+  actorId    String?   @map("actor_id") @db.Uuid
+  action     String
+  entityType String    @map("entity_type")
+  entityId   String?   @map("entity_id") @db.Uuid
+  metadata   Json      @default("{}")
+  ipAddress  String?   @map("ip_address")
+  userAgent  String?   @map("user_agent")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt  DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([actorId])
+  @@map("audit_logs")
+}
+
+model Activity {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String    @map("company_id") @db.Uuid
+  actorId   String?   @map("actor_id") @db.Uuid
+  type      String
+  title     String
+  titleAr   String?   @map("title_ar")
+  metadata  Json      @default("{}")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([actorId])
+  @@map("activities")
+}
+
+model RefreshToken {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  tokenHash   String    @map("token_hash")
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Task {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String       @map("company_id") @db.Uuid
+  departmentId String?      @map("department_id") @db.Uuid
+  createdById  String?      @map("created_by_id") @db.Uuid
+  title        String
+  description  String?
+  status       TaskStatus   @default(NEW)
+  priority     TaskPriority @default(MEDIUM)
+  dueAt        DateTime?    @map("due_at") @db.Timestamptz(6)
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime?    @map("deleted_at") @db.Timestamptz(6)
+
+  company    Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  department Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  createdBy  User?          @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  assignees  TaskAssignee[]
+
+  @@index([companyId, status])
+  @@index([departmentId])
+  @@map("tasks")
+}
+
+model TaskAssignee {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String    @map("company_id") @db.Uuid
+  taskId    String    @map("task_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  task    Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, taskId, userId])
+  @@index([companyId])
+  @@map("task_assignees")
+}
+
+model LeaveRequest {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String      @map("company_id") @db.Uuid
+  employeeId   String      @map("employee_id") @db.Uuid
+  departmentId String?     @map("department_id") @db.Uuid
+  leaveType    String      @map("leave_type")
+  startsAt     DateTime    @map("starts_at") @db.Timestamptz(6)
+  endsAt       DateTime    @map("ends_at") @db.Timestamptz(6)
+  status       LeaveStatus @default(PENDING)
+  reason       String?
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime?   @map("deleted_at") @db.Timestamptz(6)
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee   User        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status])
+  @@index([employeeId])
+  @@map("leave_requests")
+}
+
+model EmailMessage {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String         @map("company_id") @db.Uuid
+  senderId    String?        @map("sender_id") @db.Uuid
+  direction   EmailDirection
+  subject     String
+  body        String
+  fromAddress String         @map("from_address")
+  toAddresses Json           @map("to_addresses")
+  readAt      DateTime?      @map("read_at") @db.Timestamptz(6)
+  sentAt      DateTime?      @map("sent_at") @db.Timestamptz(6)
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime?      @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  sender  User?   @relation("EmailSender", fields: [senderId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([senderId])
+  @@map("email_messages")
+}
