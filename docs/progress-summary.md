@@ -10,7 +10,8 @@ Current Git state:
 
 - Branch: `feature/leave-requests`
 - Base branch `main` includes merged Phase 2A through `56ef8d5 Update Phase 2A progress summary`.
-- Pending branch goal: Phase 2B Leave Requests Core.
+- Latest implementation commit: `c811b71 Implement Phase 2B leave requests`.
+- Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature/leave-requests`
 
 The repository now contains:
 
@@ -231,4 +232,4 @@ Recent completed commits:
 - `3fe4d84 Add Phase 1.5 reusable infrastructure`
 - `8db5bbc Add pre-Phase-2 architecture safeguards`
 - `f351a40 Implement Phase 2A task core`
-- Phase 2B Leave Requests Core pending commit on `feature/leave-requests`
+- `c811b71 Implement Phase 2B leave requests`
