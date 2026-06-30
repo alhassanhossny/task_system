@@ -5,6 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { Building2, CheckSquare, Globe, Moon, Sun, Users } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useAuth } from "./auth-store";
 import { loginSchema, type LoginFormValues } from "./auth-schema";
@@ -13,9 +14,11 @@ import { useUiText } from "@/features/prototype/use-ui-text";
 
 export function LoginView() {
   const { t, lang } = useUiText();
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const router = useRouter();
   const auth = useAuth();
+  const [themeMounted, setThemeMounted] = useState(false);
+  const isDark = themeMounted && resolvedTheme === "dark";
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -39,6 +42,10 @@ export function LoginView() {
   function switchLocale() {
     router.push(`/${lang === "ar" ? "en" : "ar"}/login`);
   }
+
+  useEffect(() => {
+    setThemeMounted(true);
+  }, []);
 
   return (
     <div className="h-screen flex overflow-hidden bg-background" dir="ltr">
@@ -92,10 +99,18 @@ export function LoginView() {
           </div>
           <div className="flex items-center gap-1.5 ms-auto">
             <button
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              onClick={() => setTheme(isDark ? "light" : "dark")}
               className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground"
             >
-              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              {themeMounted ? (
+                isDark ? (
+                  <Sun className="w-4 h-4" />
+                ) : (
+                  <Moon className="w-4 h-4" />
+                )
+              ) : (
+                <span className="w-4 h-4" aria-hidden="true" />
+              )}
             </button>
             <button
               onClick={switchLocale}

@@ -3,7 +3,7 @@
 import { useTheme } from "next-themes";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, Building2, ChevronDown, Globe, LogOut, Menu, Moon, Search, Sun } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/features/auth/auth-store";
 import type { Lang, UiText } from "@/features/prototype/types";
 import { pageTitleFromPath } from "./nav";
@@ -22,10 +22,16 @@ export function AppTopbar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const auth = useAuth();
   const [notifOpen, setNotifOpen] = useState(false);
+  const [themeMounted, setThemeMounted] = useState(false);
+  const isDark = themeMounted && resolvedTheme === "dark";
   const title = pageTitleFromPath(pathname, t);
+
+  useEffect(() => {
+    setThemeMounted(true);
+  }, []);
 
   function switchLocale() {
     const nextLocale = lang === "ar" ? "en" : "ar";
@@ -67,10 +73,18 @@ export function AppTopbar({
         </div>
 
         <button
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          onClick={() => setTheme(isDark ? "light" : "dark")}
           className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
         >
-          {theme === "dark" ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
+          {themeMounted ? (
+            isDark ? (
+              <Sun className="w-4.5 h-4.5" />
+            ) : (
+              <Moon className="w-4.5 h-4.5" />
+            )
+          ) : (
+            <span className="w-4.5 h-4.5" aria-hidden="true" />
+          )}
         </button>
 
         <button
