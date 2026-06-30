@@ -8,6 +8,7 @@
     "start": "nest start",
     "start:prod": "node dist/main.js",
     "test:tenant-isolation": "tsx src/common/tests/tenant-isolation.test.ts",
+    "test:tasks-core": "tsx src/tasks/tests/tasks-core.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
     "format": "prettier --write \"src/**/*.ts\" \"../../prisma/**/*.ts\"",

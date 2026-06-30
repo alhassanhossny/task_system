@@ -1,4 +1,4 @@
-import { PrismaClient, CompanyPlan, CompanyStatus, Locale, SystemRole, UserStatus } from "@prisma/client";
+import { PrismaClient, CompanyPlan, CompanyStatus, EntityType, Locale, SystemRole, TaskPriority, TaskStatus, UserStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -44,7 +44,10 @@ const permissionSeeds = [
   ["read", "tasks", "Read tasks"],
   ["create", "tasks", "Create tasks"],
   ["update", "tasks", "Update tasks"],
+  ["delete", "tasks", "Delete tasks"],
   ["assign", "tasks", "Assign tasks"],
+  ["comment", "tasks", "Comment on tasks"],
+  ["attach", "tasks", "Attach files to tasks"],
   ["complete", "tasks", "Complete tasks"],
   ["read", "leave_requests", "Read leave requests"],
   ["submit", "leave_requests", "Submit leave requests"],
@@ -84,7 +87,10 @@ const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
     "tasks:read",
     "tasks:create",
     "tasks:update",
+    "tasks:delete",
     "tasks:assign",
+    "tasks:comment",
+    "tasks:attach",
     "tasks:complete",
     "leave_requests:read",
     "leave_requests:approve",
@@ -108,6 +114,9 @@ const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
     "tasks:read",
     "tasks:create",
     "tasks:update",
+    "tasks:comment",
+    "tasks:attach",
+    "tasks:complete",
     "leave_requests:read",
     "leave_requests:submit",
     "emails:read",
@@ -188,6 +197,109 @@ async function assignRole(companyId: string, userId: string, systemName: SystemR
     update: {},
     create: { companyId, userId, roleId: role.id }
   });
+}
+
+async function seedTask(input: {
+  companyId: string;
+  taskNumber: string;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  departmentId: string;
+  createdById: string;
+  assigneeIds: string[];
+  watcherIds: string[];
+  dueAt: Date;
+  estimatedHours: number;
+  actualHours?: number;
+}) {
+  const task = await prisma.task.upsert({
+    where: {
+      companyId_taskNumber: {
+        companyId: input.companyId,
+        taskNumber: input.taskNumber
+      }
+    },
+    update: {
+      title: input.title,
+      description: input.description,
+      status: input.status,
+      priority: input.priority,
+      departmentId: input.departmentId,
+      dueAt: input.dueAt,
+      estimatedHours: input.estimatedHours,
+      actualHours: input.actualHours,
+      completedAt: input.status === TaskStatus.COMPLETED ? new Date("2026-06-29T12:00:00.000Z") : null,
+      deletedAt: null
+    },
+    create: {
+      companyId: input.companyId,
+      taskNumber: input.taskNumber,
+      title: input.title,
+      description: input.description,
+      status: input.status,
+      priority: input.priority,
+      departmentId: input.departmentId,
+      createdById: input.createdById,
+      dueAt: input.dueAt,
+      estimatedHours: input.estimatedHours,
+      actualHours: input.actualHours,
+      completedAt: input.status === TaskStatus.COMPLETED ? new Date("2026-06-29T12:00:00.000Z") : null
+    }
+  });
+
+  for (const userId of input.assigneeIds) {
+    await prisma.taskAssignee.upsert({
+      where: {
+        companyId_taskId_userId: {
+          companyId: input.companyId,
+          taskId: task.id,
+          userId
+        }
+      },
+      update: { deletedAt: null },
+      create: { companyId: input.companyId, taskId: task.id, userId }
+    });
+  }
+
+  for (const userId of [...new Set([input.createdById, ...input.assigneeIds, ...input.watcherIds])]) {
+    await prisma.taskWatcher.upsert({
+      where: {
+        companyId_taskId_userId: {
+          companyId: input.companyId,
+          taskId: task.id,
+          userId
+        }
+      },
+      update: { deletedAt: null },
+      create: { companyId: input.companyId, taskId: task.id, userId }
+    });
+  }
+
+  await prisma.searchIndex.upsert({
+    where: {
+      companyId_entityType_entityId: {
+        companyId: input.companyId,
+        entityType: EntityType.TASK,
+        entityId: task.id
+      }
+    },
+    update: {
+      title: `${task.taskNumber} ${task.title}`,
+      content: [task.taskNumber, task.title, task.description].filter(Boolean).join("\n"),
+      deletedAt: null
+    },
+    create: {
+      companyId: input.companyId,
+      entityType: EntityType.TASK,
+      entityId: task.id,
+      title: `${task.taskNumber} ${task.title}`,
+      content: [task.taskNumber, task.title, task.description].filter(Boolean).join("\n")
+    }
+  });
+
+  return task;
 }
 
 async function main() {
@@ -321,6 +433,53 @@ async function main() {
   for (const companyId of [ids.platformCompany, ids.advancedTech, ids.leadingGroup]) {
     await linkRolePermissions(companyId);
   }
+
+  await seedTask({
+    companyId: ids.advancedTech,
+    taskNumber: "TASK-00001",
+    title: "إعداد تقرير العمليات الشهري",
+    description: "جمع مؤشرات الأداء من الأقسام وتجهيز التقرير للمدير التنفيذي.",
+    status: TaskStatus.IN_PROGRESS,
+    priority: TaskPriority.HIGH,
+    departmentId: ids.itDept,
+    createdById: ids.companyAdmin,
+    assigneeIds: [ids.manager],
+    watcherIds: [ids.employee],
+    dueAt: new Date("2026-07-05T09:00:00.000Z"),
+    estimatedHours: 8,
+    actualHours: 3
+  });
+
+  await seedTask({
+    companyId: ids.advancedTech,
+    taskNumber: "TASK-00002",
+    title: "مراجعة ملفات الموظفين الجديدة",
+    description: "التأكد من اكتمال المستندات وربطها بملفات الموظفين.",
+    status: TaskStatus.ASSIGNED,
+    priority: TaskPriority.MEDIUM,
+    departmentId: ids.hrDept,
+    createdById: ids.manager,
+    assigneeIds: [ids.employee],
+    watcherIds: [ids.companyAdmin],
+    dueAt: new Date("2026-07-08T09:00:00.000Z"),
+    estimatedHours: 5
+  });
+
+  await seedTask({
+    companyId: ids.advancedTech,
+    taskNumber: "TASK-00003",
+    title: "إغلاق تذاكر الدعم المتأخرة",
+    description: "فرز التذاكر المفتوحة وتحديث الحالات قبل نهاية الأسبوع.",
+    status: TaskStatus.COMPLETED,
+    priority: TaskPriority.CRITICAL,
+    departmentId: ids.itDept,
+    createdById: ids.companyAdmin,
+    assigneeIds: [ids.employee],
+    watcherIds: [ids.manager],
+    dueAt: new Date("2026-06-29T09:00:00.000Z"),
+    estimatedHours: 6,
+    actualHours: 6
+  });
 
   await prisma.auditLog.create({
     data: {

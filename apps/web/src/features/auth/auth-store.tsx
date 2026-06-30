@@ -1,7 +1,7 @@
 "use client";
 
 import type { AuthUser } from "@taskflow/types";
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 interface SessionState {
   accessToken: string | null;
@@ -37,7 +37,11 @@ function readInitialSession(): SessionState {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSessionState] = useState<SessionState>(readInitialSession);
+  const [session, setSessionState] = useState<SessionState>({ accessToken: null, refreshToken: null, user: null });
+
+  useEffect(() => {
+    setSessionState(readInitialSession());
+  }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({

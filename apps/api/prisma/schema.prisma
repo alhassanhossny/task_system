@@ -100,6 +100,7 @@ enum EntityType {
 enum NotificationType {
   TASK_ASSIGNED
   TASK_COMPLETED
+  TASK_DUE_SOON
   LEAVE_SUBMITTED
   LEAVE_APPROVED
   EMAIL_SENT
@@ -155,6 +156,7 @@ model Company {
   refreshTokens   RefreshToken[]
   tasks           Task[]
   taskAssignees   TaskAssignee[]
+  taskWatchers    TaskWatcher[]
   leaveRequests   LeaveRequest[]
   emailMessages   EmailMessage[]
   attachments     Attachment[]
@@ -196,6 +198,7 @@ model User {
   refreshTokens      RefreshToken[]
   createdTasks       Task[]         @relation("TaskCreator")
   assignedTasks      TaskAssignee[]
+  watchedTasks       TaskWatcher[]
   leaveRequests      LeaveRequest[]
   sentEmails         EmailMessage[] @relation("EmailSender")
   uploadedAttachments Attachment[]  @relation("AttachmentUploader")
@@ -380,11 +383,16 @@ model Task {
   companyId    String       @map("company_id") @db.Uuid
   departmentId String?      @map("department_id") @db.Uuid
   createdById  String?      @map("created_by_id") @db.Uuid
+  taskNumber   String       @map("task_number")
   title        String
   description  String?
   status       TaskStatus   @default(NEW)
   priority     TaskPriority @default(MEDIUM)
   dueAt        DateTime?    @map("due_at") @db.Timestamptz(6)
+  completedAt  DateTime?    @map("completed_at") @db.Timestamptz(6)
+  reminderSentAt DateTime?  @map("reminder_sent_at") @db.Timestamptz(6)
+  estimatedHours Decimal?   @map("estimated_hours") @db.Decimal(8, 2)
+  actualHours    Decimal?   @map("actual_hours") @db.Decimal(8, 2)
   createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt    DateTime?    @map("deleted_at") @db.Timestamptz(6)
@@ -393,8 +401,12 @@ model Task {
   department Department?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   createdBy  User?          @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
   assignees  TaskAssignee[]
+  watchers   TaskWatcher[]
 
+  @@unique([companyId, taskNumber])
   @@index([companyId, status])
+  @@index([companyId, priority])
+  @@index([companyId, dueAt])
   @@index([departmentId])
   @@map("tasks")
 }
@@ -414,7 +426,29 @@ model TaskAssignee {
 
   @@unique([companyId, taskId, userId])
   @@index([companyId])
+  @@index([taskId])
+  @@index([userId])
   @@map("task_assignees")
+}
+
+model TaskWatcher {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String    @map("company_id") @db.Uuid
+  taskId    String    @map("task_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  task    Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, taskId, userId])
+  @@index([companyId])
+  @@index([taskId])
+  @@index([userId])
+  @@map("task_watchers")
 }
 
 model LeaveRequest {

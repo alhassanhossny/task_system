@@ -11,6 +11,7 @@
     "typecheck": "corepack pnpm -r typecheck",
     "lint": "corepack pnpm -r lint",
     "test:tenant-isolation": "corepack pnpm --filter @taskflow/api test:tenant-isolation",
+    "test:tasks-core": "corepack pnpm --filter @taskflow/api test:tasks-core",
     "format": "corepack pnpm -r format",
     "db:generate": "corepack pnpm --filter @taskflow/api prisma:generate",
     "db:migrate": "corepack pnpm --filter @taskflow/api prisma:migrate",

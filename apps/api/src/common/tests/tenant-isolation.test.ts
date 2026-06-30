@@ -46,6 +46,7 @@ async function main() {
         data: {
           companyId: companyA.id,
           createdById: userA.id,
+          taskNumber: `TASK-A-${suffix}`,
           title: "Tenant A Task"
         }
       }),
@@ -53,6 +54,7 @@ async function main() {
         data: {
           companyId: companyB.id,
           createdById: userB.id,
+          taskNumber: `TASK-B-${suffix}`,
           title: "Tenant B Task"
         }
       })
@@ -116,6 +118,7 @@ async function canFindEmail(companyId: string, id: string) {
 
 async function cleanup(...companyIds: string[]) {
   await prisma.emailMessage.deleteMany({ where: { companyId: { in: companyIds } } });
+  await prisma.taskWatcher.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.taskAssignee.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.task.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.user.deleteMany({ where: { companyId: { in: companyIds } } });

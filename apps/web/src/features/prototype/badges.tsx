@@ -21,8 +21,24 @@ const PRIORITY_CFG: Record<string, { bg: string; text: string; dot: string; arLa
   critical: { bg: "bg-red-100 dark:bg-red-900/50", text: "text-red-700 dark:text-red-300", dot: "bg-red-500", arLabel: "حرج", enLabel: "Critical" }
 };
 
+const STATUS_ALIASES: Record<string, string> = {
+  NEW: "new",
+  ASSIGNED: "assigned",
+  IN_PROGRESS: "inProgress",
+  PENDING: "pending",
+  COMPLETED: "completed",
+  CANCELLED: "cancelled"
+};
+
+const PRIORITY_ALIASES: Record<string, string> = {
+  LOW: "low",
+  MEDIUM: "medium",
+  HIGH: "high",
+  CRITICAL: "critical"
+};
+
 export function StatusBadge({ status, lang }: { status: string; lang: Lang }) {
-  const c = STATUS_CFG[status] ?? STATUS_CFG.new;
+  const c = STATUS_CFG[STATUS_ALIASES[status] ?? status] ?? STATUS_CFG.new;
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${c.bg} ${c.text}`}>
       {lang === "ar" ? c.arLabel : c.enLabel}
@@ -31,7 +47,7 @@ export function StatusBadge({ status, lang }: { status: string; lang: Lang }) {
 }
 
 export function PriorityBadge({ priority, lang }: { priority: string; lang: Lang }) {
-  const c = PRIORITY_CFG[priority] ?? PRIORITY_CFG.medium;
+  const c = PRIORITY_CFG[PRIORITY_ALIASES[priority] ?? priority] ?? PRIORITY_CFG.medium;
   return (
     <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${c.bg} ${c.text}`}>
       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.dot}`} />
