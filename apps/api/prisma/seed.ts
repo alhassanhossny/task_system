@@ -25,7 +25,22 @@ const permissionSeeds = [
   ["read", "departments", "Read departments"],
   ["write", "departments", "Create and update departments"],
   ["read", "audit_logs", "Read audit logs"],
-  ["read", "activities", "Read activity feed"]
+  ["read", "activities", "Read activity feed"],
+  ["read", "attachments", "Read attachments"],
+  ["write", "attachments", "Create and update attachments"],
+  ["read", "comments", "Read comments"],
+  ["write", "comments", "Create and update comments"],
+  ["read", "notifications", "Read notifications"],
+  ["write", "notifications", "Create and update notifications"],
+  ["read", "smtp_settings", "Read SMTP settings"],
+  ["write", "smtp_settings", "Create and update SMTP settings"],
+  ["read", "search", "Use global search"],
+  ["read", "approval_workflows", "Read approval workflows"],
+  ["write", "approval_workflows", "Create and update approval workflows"],
+  ["read", "tags", "Read tags"],
+  ["write", "tags", "Create and update tags"],
+  ["read", "user_preferences", "Read user preferences"],
+  ["write", "user_preferences", "Create and update user preferences"]
 ] as const;
 
 const tenantRoleSeeds = [
@@ -84,10 +99,16 @@ async function linkRolePermissions(companyId: string) {
       }
 
       if (role.systemName === SystemRole.MANAGER) {
-        return permission.action === "read" || ["users", "departments", "activities"].includes(permission.subject);
+        return (
+          permission.action === "read" ||
+          ["users", "departments", "activities", "attachments", "comments", "notifications", "search", "tags", "user_preferences"].includes(permission.subject)
+        );
       }
 
-      return permission.action === "read" && ["users", "departments", "activities"].includes(permission.subject);
+      return (
+        permission.action === "read" &&
+        ["users", "departments", "activities", "attachments", "comments", "notifications", "search", "tags", "user_preferences"].includes(permission.subject)
+      );
     });
 
     for (const permission of allowed) {

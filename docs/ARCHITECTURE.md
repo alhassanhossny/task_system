@@ -8,7 +8,7 @@ The only intentional UI adjustments before coding are:
 
 - Company switcher in the top bar for Super Admin tenant context.
 - Global search in the header.
-- Notification drawer instead of a dropdown.
+- Notification dropdown anchored to the header bell, with viewport-safe mobile behavior.
 
 ## Monorepo
 
@@ -65,6 +65,23 @@ Phase 2 placeholders are schema-only:
 - `task_assignees`
 - `leave_requests`
 - `email_messages`
+
+## Phase 1.5 Reusable Infrastructure
+
+Before implementing Tasks, Leave Requests, or Email Center, the foundation adds reusable infrastructure that those modules will share:
+
+- `attachments`: generic file metadata keyed by `entity_type` and `entity_id`.
+- `comments`: generic comments keyed by `entity_type` and `entity_id`.
+- `notifications`: persistent user notifications with read/unread state and entity links.
+- `search_index`: tenant-scoped unified search records for future global search.
+- `smtp_settings`: per-company SMTP configuration with encrypted password storage.
+- `approval_workflows`, `approval_steps`, `approval_actions`: workflow foundation for leave requests and future approval processes.
+- `tags`, `entity_tags`: generic tagging for tasks and future entities.
+- `user_preferences`: user-specific language, theme, sidebar, and dashboard settings.
+
+The API exposes foundation endpoints for attachments, comments, notifications, and SMTP settings. Search, workflow, tags, and preferences are modeled now so Phase 2 modules can use the same schema instead of introducing module-specific duplicates.
+
+Redis and BullMQ are included before Email Center so outbound mail can be queued instead of sent synchronously from request handlers. The initial queue module registers an `email` queue and an `EmailQueueService`; the actual SMTP worker belongs to the Email Center phase.
 
 ## Frontend
 

@@ -84,6 +84,55 @@ enum EmailDirection {
   @@map("email_direction")
 }
 
+enum EntityType {
+  TASK
+  EMAIL
+  LEAVE_REQUEST
+  EMPLOYEE
+  USER
+  DEPARTMENT
+  COMPANY
+  CLIENT
+
+  @@map("entity_type")
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_COMPLETED
+  LEAVE_SUBMITTED
+  LEAVE_APPROVED
+  EMAIL_SENT
+  SYSTEM
+
+  @@map("notification_type")
+}
+
+enum SmtpEncryption {
+  NONE     @map("none")
+  STARTTLS @map("starttls")
+  SSL_TLS  @map("ssl_tls")
+
+  @@map("smtp_encryption")
+}
+
+enum ApprovalActionStatus {
+  PENDING   @map("pending")
+  APPROVED  @map("approved")
+  REJECTED  @map("rejected")
+  CANCELLED @map("cancelled")
+
+  @@map("approval_action_status")
+}
+
+enum ThemePreference {
+  SYSTEM @map("system")
+  LIGHT  @map("light")
+  DARK   @map("dark")
+
+  @@map("theme_preference")
+}
+
 model Company {
   id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name          String
@@ -108,6 +157,17 @@ model Company {
   taskAssignees   TaskAssignee[]
   leaveRequests   LeaveRequest[]
   emailMessages   EmailMessage[]
+  attachments     Attachment[]
+  comments        Comment[]
+  notifications   Notification[]
+  searchIndexes   SearchIndex[]
+  smtpSetting     SmtpSetting?
+  approvalWorkflows ApprovalWorkflow[]
+  approvalSteps   ApprovalStep[]
+  approvalActions ApprovalAction[]
+  tags            Tag[]
+  entityTags      EntityTag[]
+  userPreferences UserPreference[]
 
   @@map("companies")
 }
@@ -138,6 +198,14 @@ model User {
   assignedTasks      TaskAssignee[]
   leaveRequests      LeaveRequest[]
   sentEmails         EmailMessage[] @relation("EmailSender")
+  uploadedAttachments Attachment[]  @relation("AttachmentUploader")
+  comments           Comment[]      @relation("CommentAuthor")
+  notifications      Notification[] @relation("NotificationUser")
+  approvalSteps      ApprovalStep[] @relation("ApprovalStepApproverUser")
+  approvalActions    ApprovalAction[] @relation("ApprovalActionActor")
+  createdTags        Tag[]          @relation("TagCreator")
+  createdEntityTags  EntityTag[]    @relation("EntityTagCreator")
+  preference         UserPreference?
 
   @@unique([companyId, email])
   @@index([companyId])
@@ -158,6 +226,7 @@ model Role {
   company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
   userRoles       UserRole[]
   rolePermissions RolePermission[]
+  approvalSteps   ApprovalStep[]   @relation("ApprovalStepApproverRole")
 
   @@unique([companyId, systemName])
   @@index([companyId])
@@ -392,4 +461,238 @@ model EmailMessage {
   @@index([companyId, createdAt])
   @@index([senderId])
   @@map("email_messages")
+}
+
+model Attachment {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String     @map("company_id") @db.Uuid
+  entityType   EntityType @map("entity_type")
+  entityId     String     @map("entity_id") @db.Uuid
+  fileName     String     @map("file_name")
+  filePath     String     @map("file_path")
+  mimeType     String     @map("mime_type")
+  fileSize     Int        @map("file_size")
+  uploadedById String?    @map("uploaded_by_id") @db.Uuid
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime?  @map("deleted_at") @db.Timestamptz(6)
+
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  uploadedBy User?   @relation("AttachmentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, entityType, entityId])
+  @@index([uploadedById])
+  @@map("attachments")
+}
+
+model Comment {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId  String     @map("company_id") @db.Uuid
+  entityType EntityType @map("entity_type")
+  entityId   String     @map("entity_id") @db.Uuid
+  userId     String     @map("user_id") @db.Uuid
+  content    String     @db.Text
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt  DateTime?  @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user    User    @relation("CommentAuthor", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, entityType, entityId, createdAt])
+  @@index([userId])
+  @@map("comments")
+}
+
+model Notification {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId  String           @map("company_id") @db.Uuid
+  userId     String           @map("user_id") @db.Uuid
+  type       NotificationType
+  title      String
+  message    String
+  entityType EntityType?      @map("entity_type")
+  entityId   String?          @map("entity_id") @db.Uuid
+  isRead     Boolean          @default(false) @map("is_read")
+  readAt     DateTime?        @map("read_at") @db.Timestamptz(6)
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt  DateTime?        @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user    User    @relation("NotificationUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, userId, isRead, createdAt])
+  @@index([companyId, entityType, entityId])
+  @@map("notifications")
+}
+
+model SearchIndex {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId  String     @map("company_id") @db.Uuid
+  entityType EntityType @map("entity_type")
+  entityId   String     @map("entity_id") @db.Uuid
+  title      String
+  content    String     @db.Text
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt  DateTime?  @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, entityType, entityId])
+  @@index([companyId, title])
+  @@map("search_index")
+}
+
+model SmtpSetting {
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId         String         @unique @map("company_id") @db.Uuid
+  host              String
+  port              Int
+  username          String?
+  passwordEncrypted String?        @map("password_encrypted") @db.Text
+  encryption        SmtpEncryption @default(STARTTLS)
+  fromName          String         @map("from_name")
+  fromEmail         String         @map("from_email")
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?      @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("smtp_settings")
+}
+
+model ApprovalWorkflow {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String         @map("company_id") @db.Uuid
+  entityType  EntityType     @map("entity_type")
+  name        String
+  description String?
+  isActive    Boolean        @default(true) @map("is_active")
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime?      @map("deleted_at") @db.Timestamptz(6)
+
+  company Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  steps   ApprovalStep[]
+  actions ApprovalAction[]
+
+  @@index([companyId, entityType, isActive])
+  @@map("approval_workflows")
+}
+
+model ApprovalStep {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String    @map("company_id") @db.Uuid
+  workflowId     String    @map("workflow_id") @db.Uuid
+  stepOrder      Int       @map("step_order")
+  name           String
+  approverRoleId String?   @map("approver_role_id") @db.Uuid
+  approverUserId String?   @map("approver_user_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company      Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  workflow     ApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  approverRole Role?            @relation("ApprovalStepApproverRole", fields: [approverRoleId], references: [id], onDelete: SetNull)
+  approverUser User?            @relation("ApprovalStepApproverUser", fields: [approverUserId], references: [id], onDelete: SetNull)
+  actions      ApprovalAction[]
+
+  @@unique([companyId, workflowId, stepOrder])
+  @@index([companyId])
+  @@index([approverRoleId])
+  @@index([approverUserId])
+  @@map("approval_steps")
+}
+
+model ApprovalAction {
+  id         String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId  String               @map("company_id") @db.Uuid
+  workflowId String               @map("workflow_id") @db.Uuid
+  stepId     String?              @map("step_id") @db.Uuid
+  entityType EntityType           @map("entity_type")
+  entityId   String               @map("entity_id") @db.Uuid
+  actorId    String?              @map("actor_id") @db.Uuid
+  status     ApprovalActionStatus @default(PENDING)
+  comment    String?              @db.Text
+  metadata   Json                 @default("{}")
+  createdAt  DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt  DateTime?            @map("deleted_at") @db.Timestamptz(6)
+
+  company  Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  workflow ApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  step     ApprovalStep?    @relation(fields: [stepId], references: [id], onDelete: SetNull)
+  actor    User?            @relation("ApprovalActionActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, entityType, entityId])
+  @@index([workflowId])
+  @@index([stepId])
+  @@index([actorId])
+  @@map("approval_actions")
+}
+
+model Tag {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  name        String
+  color       String?
+  createdById String?   @map("created_by_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy  User?       @relation("TagCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  entityTags EntityTag[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([createdById])
+  @@map("tags")
+}
+
+model EntityTag {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String     @map("company_id") @db.Uuid
+  tagId       String     @map("tag_id") @db.Uuid
+  entityType  EntityType @map("entity_type")
+  entityId    String     @map("entity_id") @db.Uuid
+  createdById String?    @map("created_by_id") @db.Uuid
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime?  @map("deleted_at") @db.Timestamptz(6)
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation("EntityTagCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, tagId, entityType, entityId])
+  @@index([companyId, entityType, entityId])
+  @@index([tagId])
+  @@index([createdById])
+  @@map("entity_tags")
+}
+
+model UserPreference {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId        String          @map("company_id") @db.Uuid
+  userId           String          @unique @map("user_id") @db.Uuid
+  language         Locale          @default(AR)
+  theme            ThemePreference @default(SYSTEM)
+  sidebarCollapsed Boolean         @default(false) @map("sidebar_collapsed")
+  dashboardLayout  Json            @default("{}") @map("dashboard_layout")
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?       @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId])
+  @@index([companyId])
+  @@map("user_preferences")
 }

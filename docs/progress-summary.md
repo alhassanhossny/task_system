@@ -4,7 +4,7 @@ Last updated: 2026-06-30
 
 ## Current Status
 
-Phase 1 foundation is implemented for the TASK Flow SaaS monorepo.
+Phase 1 foundation is implemented for the TASK Flow SaaS monorepo. A Phase 1.5 architecture pass has also been added before Tasks, Leave Requests, and Email Center implementation.
 
 The repository now contains:
 
@@ -17,7 +17,7 @@ The repository now contains:
 
 ## Implemented Foundation
 
-- Docker PostgreSQL setup.
+- Docker PostgreSQL and Redis setup.
 - Prisma schema, migration, seed data, and UUID-based models.
 - Multi-tenant data model with `company_id` on business entities.
 - Authentication flow with access and refresh tokens.
@@ -28,6 +28,11 @@ The repository now contains:
 - Theme provider with dark and light mode.
 - `next-intl` locale structure for Arabic and English.
 - Protected app shell with sidebar, topbar, global search, company switcher, and notifications.
+- Generic attachments and comments modules.
+- Persistent notifications module with read/unread actions.
+- Per-company SMTP settings with encrypted password storage.
+- BullMQ email queue infrastructure.
+- Search index, approval workflow, tags, and user preference tables.
 
 ## Recent Fixes
 
@@ -41,6 +46,7 @@ The repository now contains:
   - Desktop: anchored under the notification bell.
   - Mobile: viewport-safe full-width dropdown below the header.
   - Supports outside click and Escape key closing.
+- Added Phase 1.5 database migration and API modules for reusable pre-Phase-2 infrastructure.
 
 ## Local Testing
 
@@ -72,9 +78,10 @@ The following modules still have only schema/interfaces or prototype screens and
 - Tasks backend implementation.
 - Email center backend implementation.
 - Leave requests backend implementation.
-- Real notification persistence and read/unread actions.
+- SMTP email worker and delivery status processing.
 - Real company switcher behavior for Super Admin users.
 - Real global search.
+- Real approval workflow execution for leave requests.
 
 ## Git Progress
 
@@ -84,3 +91,5 @@ Recent completed commits:
 - `95bc0d5 Add locale index redirects`
 - `24ff51a Fix theme hydration mismatch`
 - `a7db484 Suppress extension body hydration noise`
+- `7727e57 Replace notifications drawer with dropdown`
+- Add Phase 1.5 reusable infrastructure
