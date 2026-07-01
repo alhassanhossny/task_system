@@ -217,6 +217,7 @@ model User {
   id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   companyId    String     @map("company_id") @db.Uuid
   departmentId String?    @map("department_id") @db.Uuid
+  managerId    String?    @map("manager_id") @db.Uuid
   email        String
   passwordHash String     @map("password_hash")
   name         String
@@ -230,6 +231,8 @@ model User {
 
   company            Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   department         Department?    @relation("DepartmentUsers", fields: [departmentId], references: [id], onDelete: SetNull)
+  manager            User?          @relation("UserManager", fields: [managerId], references: [id], onDelete: SetNull)
+  directReports      User[]         @relation("UserManager")
   managedDepartments Department[]   @relation("DepartmentManager")
   userRoles          UserRole[]
   auditLogs          AuditLog[]
@@ -253,6 +256,8 @@ model User {
   @@unique([companyId, email])
   @@index([companyId])
   @@index([departmentId])
+  @@index([managerId])
+  @@index([companyId, managerId])
   @@map("users")
 }
 

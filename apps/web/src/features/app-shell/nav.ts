@@ -5,6 +5,7 @@ import {
   List,
   Mail,
   Shield,
+  UserCheck,
   Users,
   type LucideIcon
 } from "lucide-react";
@@ -35,6 +36,7 @@ export function buildNav(t: UiText): NavGroup[] {
     {
       label: t.hr,
       items: [
+        { id: "team", href: "/team", icon: UserCheck, label: t.team },
         { id: "employees", href: "/employees", icon: Users, label: t.employees },
         { id: "leaves", href: "/leaves", icon: Calendar, label: t.leaves }
       ]
@@ -53,6 +55,7 @@ export function buildNav(t: UiText): NavGroup[] {
 export function pageTitleFromPath(pathname: string, t: UiText) {
   if (pathname.includes("/tasks/kanban")) return t.kanban;
   if (pathname.includes("/tasks/list")) return t.taskList;
+  if (pathname.includes("/team")) return t.team;
   if (pathname.includes("/leaves")) return t.leaves;
   if (pathname.includes("/email")) return t.email;
   if (pathname.includes("/employees")) return t.employees;

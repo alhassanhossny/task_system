@@ -5,6 +5,7 @@ export type PageId =
   | "tasks-kanban"
   | "tasks-list"
   | "leaves"
+  | "team"
   | "email"
   | "employees"
   | "superadmin";

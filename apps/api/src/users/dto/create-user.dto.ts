@@ -22,6 +22,11 @@ export class CreateUserDto {
   @IsUUID()
   departmentId?: string;
 
+  @ApiPropertyOptional({ format: "uuid" })
+  @IsOptional()
+  @IsUUID()
+  managerId?: string;
+
   @ApiPropertyOptional({ enum: Locale, default: Locale.AR })
   @IsOptional()
   @IsEnum(Locale)

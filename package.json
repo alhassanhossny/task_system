@@ -17,6 +17,7 @@
     "test:leave-balances": "corepack pnpm --filter @taskflow/api test:leave-balances",
     "test:calendar": "corepack pnpm --filter @taskflow/api test:calendar",
     "test:permissions": "corepack pnpm --filter @taskflow/api test:permissions",
+    "test:team-management": "corepack pnpm --filter @taskflow/api test:team-management",
     "format": "corepack pnpm -r format",
     "db:generate": "corepack pnpm --filter @taskflow/api prisma:generate",
     "db:migrate": "corepack pnpm --filter @taskflow/api prisma:migrate",

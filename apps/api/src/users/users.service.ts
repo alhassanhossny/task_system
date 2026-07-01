@@ -1,12 +1,16 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { Locale, UserStatus } from "@prisma/client";
+import { EntityType, Locale, UserStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { DomainEventBus } from "../domain-events/domain-event-bus.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateUserDto } from "./dto/create-user.dto";
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventBus: DomainEventBus
+  ) {}
 
   findAll(companyId: string) {
     return this.prisma.user.findMany({
@@ -29,16 +33,8 @@ export class UsersService {
     return user;
   }
 
-  async create(companyId: string, dto: CreateUserDto) {
-    if (dto.departmentId) {
-      const department = await this.prisma.department.findFirst({
-        where: { id: dto.departmentId, companyId, deletedAt: null }
-      });
-
-      if (!department) {
-        throw new BadRequestException("Department does not belong to tenant");
-      }
-    }
+  async create(companyId: string, actorId: string | null, dto: CreateUserDto) {
+    await Promise.all([this.validateDepartment(companyId, dto.departmentId), this.validateManager(companyId, dto.managerId)]);
 
     const passwordHash = await bcrypt.hash(dto.password ?? "TempPass123!", 10);
 
@@ -51,6 +47,7 @@ export class UsersService {
           name: dto.name,
           jobTitle: dto.jobTitle,
           departmentId: dto.departmentId,
+          managerId: dto.managerId,
           locale: dto.locale ?? Locale.AR,
           status: dto.status ?? UserStatus.INVITED
         },
@@ -80,7 +77,51 @@ export class UsersService {
       return created;
     });
 
+    if (dto.managerId) {
+      this.eventBus.publish({
+        name: "TEAM_MEMBER_ASSIGNED",
+        companyId,
+        actorId,
+        entityType: EntityType.USER,
+        entityId: user.id,
+        payload: {
+          employeeId: user.id,
+          managerId: dto.managerId
+        }
+      });
+    }
+
     return user;
+  }
+
+  private async validateDepartment(companyId: string, departmentId?: string) {
+    if (!departmentId) {
+      return;
+    }
+
+    const department = await this.prisma.department.findFirst({
+      where: { id: departmentId, companyId, deletedAt: null },
+      select: { id: true }
+    });
+
+    if (!department) {
+      throw new BadRequestException("Department does not belong to tenant");
+    }
+  }
+
+  private async validateManager(companyId: string, managerId?: string) {
+    if (!managerId) {
+      return;
+    }
+
+    const manager = await this.prisma.user.findFirst({
+      where: { id: managerId, companyId, deletedAt: null },
+      select: { id: true }
+    });
+
+    if (!manager) {
+      throw new BadRequestException("Manager does not belong to tenant");
+    }
   }
 
   private publicSelect() {
@@ -88,6 +129,7 @@ export class UsersService {
       id: true,
       companyId: true,
       departmentId: true,
+      managerId: true,
       email: true,
       name: true,
       jobTitle: true,
@@ -100,6 +142,13 @@ export class UsersService {
           id: true,
           name: true,
           code: true
+        }
+      },
+      manager: {
+        select: {
+          id: true,
+          name: true,
+          email: true
         }
       },
       userRoles: {

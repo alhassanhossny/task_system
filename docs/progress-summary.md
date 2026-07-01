@@ -4,7 +4,7 @@ Last updated: 2026-07-01
 
 ## Current Status
 
-Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, Phase 2B Leave Requests Core, and Phase 2B.1 Leave Enhancements are implemented. The project now has production-style task and time-off workflows using the shared SaaS infrastructure.
+Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, Phase 2B Leave Requests Core, Phase 2B.1 Leave Enhancements, and Phase 2B.2 Manager Hierarchy & Team Management are implemented. The project now has production-style task, time-off, and manager team workflows using the shared SaaS infrastructure.
 
 Current Git state:
 
@@ -13,6 +13,7 @@ Current Git state:
 - Latest implementation commit: `Implement Phase 2B.1 leave enhancements`.
 - Latest login fix commit: `925603c Fix local login CORS origins`.
 - Latest alignment commit: `Align time-off enhancements with Phase 2B.1 scope`.
+- Latest Phase 2B.2 work: `Implement Phase 2B.2 manager hierarchy and team management`.
 - Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature/leave-enhancements`
 
 The repository now contains:
@@ -224,6 +225,76 @@ Each update should include:
   - `test:calendar`
   - `test:permissions`
 
+## Implemented Phase 2B.2 Manager Hierarchy & Team Management
+
+Implemented and validated.
+
+Completed checkpoints:
+
+- Inspected existing Prisma user, task, leave request, leave balance, approval workflow, event, permission, seed, and frontend structures.
+- Confirmed Phase 2B.2 can extend the current architecture with a new team module instead of replacing existing Tasks or Leave Requests modules.
+- Added manager hierarchy schema work:
+  - `users.manager_id`
+  - Prisma `manager` and `directReports` self-relations
+  - manager lookup indexes
+  - no-self-manager database check
+- Added Phase 2B.2 migration:
+  - `20260701110000_phase_2b2_team_management`
+  - creates manager hierarchy schema changes
+  - seeds team permissions for existing companies
+  - assigns team permissions to Manager, Company Admin, and Super Admin roles
+- Added team permission constants and seed matrix entries.
+- Updated seed data so the sample employee reports to the sample manager.
+- Updated user creation/read support for `managerId` with tenant-scoped manager validation.
+- Added backend Team module:
+  - `TeamService`
+  - `TeamController`
+  - `TeamEventsHandler`
+  - `TeamModule`
+- Added team endpoints for members, member detail, dashboard, leave requests, pending approvals, team approvals/rejections, availability, leave balances, team tasks, and overdue team tasks.
+- Team approval endpoints enforce direct-report ownership before delegating to the existing leave approval workflow.
+- Added team domain events:
+  - `TEAM_LEAVE_APPROVED`
+  - `TEAM_LEAVE_REJECTED`
+  - `TEAM_MEMBER_ASSIGNED`
+- Team event subscriber writes activity, audit logs, optional notifications, and manager-enriched search index content through existing infrastructure.
+- Updated user creation to publish `TEAM_MEMBER_ASSIGNED` when a manager is assigned.
+- Updated Manager role permissions so existing Manager roles lose generic leave approve/reject access and use team-only approval permissions.
+- Added frontend Team module:
+  - `/team` App Router page
+  - `team-service.ts`
+  - `TeamView`
+  - Overview, Members, Leave Requests, Availability, and Tasks tabs
+  - manager approval/rejection actions
+  - responsive cards, filters, tables, loading states, error states, and empty states
+- Added Team to the HR sidebar navigation and page-title resolver.
+- Added Arabic and English `team` navigation labels.
+- Connected the main Dashboard time-off widgets to the team dashboard endpoint when the signed-in user has team permissions.
+- Added `test:team-management` regression coverage for:
+  - manager hierarchy
+  - direct-report filtering
+  - approval permissions
+  - tenant isolation
+  - team leave balances
+  - team availability
+  - team tasks
+  - manager dashboard data
+  - team search indexing side effects
+- Registered `test:team-management` in the API package and root package scripts.
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `prisma migrate deploy` applied `20260701110000_phase_2b2_team_management` successfully against the local PostgreSQL database.
+  - `corepack pnpm db:seed` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `corepack pnpm test:tenant-isolation` passed.
+  - `corepack pnpm test:leave-requests-core` passed.
+  - `corepack pnpm test:team-management` passed after rerunning outside the sandbox due to the known `tsx` IPC pipe restriction.
+
+Planned implementation checkpoints:
+
+- Phase 2B.2 is ready for review.
+
 ## Recent Fixes
 
 - Added locale root redirects:
@@ -342,3 +413,4 @@ Recent completed commits:
 - `Implement Phase 2B.1 leave enhancements`
 - `925603c Fix local login CORS origins`
 - `Align time-off enhancements with Phase 2B.1 scope`
+- `Implement Phase 2B.2 manager hierarchy and team management`

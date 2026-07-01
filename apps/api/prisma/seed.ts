@@ -34,6 +34,7 @@ const permissionSeeds = [
   ["write", "companies", "Create and update companies"],
   ["read", "users", "Read users"],
   ["write", "users", "Create and update users"],
+  ["view_team", "users", "View direct reports"],
   ["read", "roles", "Read roles"],
   ["write", "roles", "Create and update roles"],
   ["read", "departments", "Read departments"],
@@ -63,12 +64,18 @@ const permissionSeeds = [
   ["comment", "tasks", "Comment on tasks"],
   ["attach", "tasks", "Attach files to tasks"],
   ["complete", "tasks", "Complete tasks"],
+  ["view_team", "tasks", "View direct-report tasks"],
+  ["assign_team", "tasks", "Assign tasks to direct reports"],
   ["read", "leave_requests", "Read leave requests"],
   ["submit", "leave_requests", "Submit leave requests"],
   ["update", "leave_requests", "Update leave requests"],
   ["cancel", "leave_requests", "Cancel leave requests"],
   ["approve", "leave_requests", "Approve leave requests"],
   ["reject", "leave_requests", "Reject leave requests"],
+  ["view_team", "leave_requests", "View direct-report leave requests"],
+  ["approve_team", "leave_requests", "Approve direct-report leave requests"],
+  ["reject_team", "leave_requests", "Reject direct-report leave requests"],
+  ["view_team", "calendar", "View direct-report availability calendar"],
   ["read", "leave_types", "Read leave types"],
   ["write", "leave_types", "Create and update leave types"],
   ["read", "leave_balances", "Read leave balances"],
@@ -93,6 +100,7 @@ const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
   [SystemRole.COMPANY_ADMIN]: ["*"],
   [SystemRole.MANAGER]: [
     "users:read",
+    "users:view_team",
     "departments:read",
     "activities:read",
     "attachments:read",
@@ -115,9 +123,13 @@ const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
     "tasks:comment",
     "tasks:attach",
     "tasks:complete",
+    "tasks:view_team",
+    "tasks:assign_team",
     "leave_requests:read",
-    "leave_requests:approve",
-    "leave_requests:reject",
+    "leave_requests:view_team",
+    "leave_requests:approve_team",
+    "leave_requests:reject_team",
+    "calendar:view_team",
     "leave_types:read",
     "leave_types:write",
     "leave_balances:read",
@@ -489,7 +501,7 @@ async function main() {
 
   await prisma.user.upsert({
     where: { companyId_email: { companyId: ids.advancedTech, email: "admin@company.com" } },
-    update: { name: "أحمد محمد العلي", passwordHash, status: UserStatus.ACTIVE },
+    update: { name: "أحمد محمد العلي", passwordHash, status: UserStatus.ACTIVE, managerId: null },
     create: {
       id: ids.companyAdmin,
       companyId: ids.advancedTech,
@@ -504,10 +516,11 @@ async function main() {
 
   await prisma.user.upsert({
     where: { companyId_email: { companyId: ids.advancedTech, email: "sara@company.com" } },
-    update: { name: "سارة خالد الفارسي", passwordHash, status: UserStatus.ACTIVE },
+    update: { name: "سارة خالد الفارسي", passwordHash, status: UserStatus.ACTIVE, managerId: ids.companyAdmin },
     create: {
       id: ids.manager,
       companyId: ids.advancedTech,
+      managerId: ids.companyAdmin,
       email: "sara@company.com",
       passwordHash,
       name: "سارة خالد الفارسي",
@@ -519,10 +532,11 @@ async function main() {
 
   await prisma.user.upsert({
     where: { companyId_email: { companyId: ids.advancedTech, email: "mohammed@company.com" } },
-    update: { name: "محمد عبدالله الحربي", passwordHash, status: UserStatus.ACTIVE },
+    update: { name: "محمد عبدالله الحربي", passwordHash, status: UserStatus.ACTIVE, managerId: ids.manager },
     create: {
       id: ids.employee,
       companyId: ids.advancedTech,
+      managerId: ids.manager,
       email: "mohammed@company.com",
       passwordHash,
       name: "محمد عبدالله الحربي",

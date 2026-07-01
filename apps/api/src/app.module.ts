@@ -23,6 +23,7 @@ import { RolesModule } from "./roles/roles.module";
 import { SearchModule } from "./search/search.module";
 import { SmtpSettingsModule } from "./smtp-settings/smtp-settings.module";
 import { TasksModule } from "./tasks/tasks.module";
+import { TeamModule } from "./team/team.module";
 import { UsersModule } from "./users/users.module";
 
 @Module({
@@ -46,7 +47,8 @@ import { UsersModule } from "./users/users.module";
     EmailProvidersModule,
     SearchModule,
     TasksModule,
-    LeaveRequestsModule
+    LeaveRequestsModule,
+    TeamModule
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

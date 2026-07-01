@@ -34,7 +34,7 @@ export class UsersController {
 
   @RequirePermissions(PERMISSIONS.usersWrite)
   @Post()
-  create(@TenantId() tenantId: string, @Body() dto: CreateUserDto) {
-    return this.usersService.create(tenantId, dto);
+  create(@TenantId() tenantId: string, @CurrentUser() user: RequestUser, @Body() dto: CreateUserDto) {
+    return this.usersService.create(tenantId, user.id, dto);
   }
 }

@@ -8,12 +8,14 @@ import { useAuth } from "@/features/auth/auth-store";
 import { leavesService } from "@/features/leaves/leaves-service";
 import { ACTIVITIES, DEPT_CHART, STATUS_CHART } from "@/features/prototype/data";
 import { useUiText } from "@/features/prototype/use-ui-text";
+import { teamService } from "@/features/team/team-service";
 
 export function DashboardView() {
   const { t, lang } = useUiText();
   const { accessToken, user } = useAuth();
   const [today, setToday] = useState("");
   const context = useMemo(() => (accessToken && user ? { token: accessToken, companyId: user.companyId } : null), [accessToken, user]);
+  const canViewTeam = Boolean(user?.permissions.includes("users:view_team") && user?.permissions.includes("leave_requests:view_team"));
   const statsChartData = STATUS_CHART.map((d) => ({ name: lang === "ar" ? d.name : d.nameEn, value: d.value, fill: d.fill }));
   const deptChartData = DEPT_CHART.map((d) => ({ name: lang === "ar" ? d.nameAr : d.name, tasks: d.tasks, fill: d.fill }));
 
@@ -52,7 +54,13 @@ export function DashboardView() {
     queryFn: () => leavesService.availability(context!, availabilityRange!),
     enabled: Boolean(context && availabilityRange)
   });
+  const teamDashboardQuery = useQuery({
+    queryKey: ["team", "dashboard"],
+    queryFn: () => teamService.dashboard(context!),
+    enabled: Boolean(context && canViewTeam)
+  });
   const balances = balancesQuery.data ?? [];
+  const teamDashboard = teamDashboardQuery.data;
   const annualBalance = balances.find((balance) => balance.leaveType.code === "ANNUAL") ?? balances[0];
   const approvedLeaves = approvedLeavesQuery.data ?? [];
   const upcomingLeaves = approvedLeaves.filter((leave) => (today ? leave.startsAt.slice(0, 10) >= today : false)).length;
@@ -66,21 +74,24 @@ export function DashboardView() {
     },
     {
       label: lang === "ar" ? "طلبات بانتظار الموافقة" : "Pending Approvals",
-      value: String(pendingLeavesQuery.data?.length ?? 0),
+      value: String(teamDashboard?.counts.pendingApprovals ?? pendingLeavesQuery.data?.length ?? 0),
       change: lang === "ar" ? "طلبات نشطة" : "active requests",
       I: CheckSquare,
       accent: "amber"
     },
     {
       label: lang === "ar" ? "الفريق خارج العمل اليوم" : "Team Away Today",
-      value: String(availabilityQuery.data?.onLeaveCount ?? 0),
-      change: lang === "ar" ? `${availabilityQuery.data?.availableCount ?? 0} متاح` : `${availabilityQuery.data?.availableCount ?? 0} available`,
+      value: String(teamDashboard?.counts.awayToday ?? availabilityQuery.data?.onLeaveCount ?? 0),
+      change:
+        lang === "ar"
+          ? `${teamDashboard ? teamDashboard.openTeamTasks.length : availabilityQuery.data?.availableCount ?? 0} ${teamDashboard ? "مهام مفتوحة" : "متاح"}`
+          : `${teamDashboard ? teamDashboard.openTeamTasks.length : availabilityQuery.data?.availableCount ?? 0} ${teamDashboard ? "open tasks" : "available"}`,
       I: Users,
       accent: "blue"
     },
     {
       label: lang === "ar" ? "إجازات قادمة" : "Upcoming Team Absences",
-      value: String(upcomingLeaves),
+      value: String(teamDashboard?.counts.upcomingAbsences ?? upcomingLeaves),
       change: lang === "ar" ? "إجازات معتمدة" : "approved leave",
       I: TrendingUp,
       accent: "green"
