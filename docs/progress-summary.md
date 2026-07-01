@@ -16,7 +16,7 @@ Current Git state:
 - Latest Phase 2B.2 work: `Implement Phase 2B.2 manager hierarchy and team management`.
 - Latest Phase 2C work: `Implement Phase 2C global search and productivity layer`.
 - Latest Phase 3 work: `Implement Phase 3 email center`.
-- Latest Phase 4 work: `Implement Phase 4 platform backend skeleton`.
+- Latest Phase 4 work: `Implement Phase 4 company management APIs`.
 - Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature-super-admin-portal`
 
 The repository now contains:
@@ -474,7 +474,7 @@ Follow-up work:
 
 ## In Progress Phase 4 Super Admin SaaS Portal
 
-Current checkpoint: Step 3 Super Admin backend module skeleton completed.
+Current checkpoint: Step 4 Company Management APIs completed.
 
 Completed checkpoints:
 
@@ -622,9 +622,74 @@ Completed Step 3 checkpoints:
   - `corepack pnpm typecheck` passed.
   - `corepack pnpm lint` passed.
 
+- Step 4 Company Management APIs was completed as a company administration-only milestone.
+
+Completed Step 4 checkpoints:
+
+- Implemented Prisma-backed Platform company management APIs:
+  - `listCompanies()`
+  - `getCompany()`
+  - `suspendCompany()`
+  - `activateCompany()`
+- Added company list pagination, status/plan filters, and search across:
+  - company name
+  - primary domain
+  - billing email
+- Added company detail payload with:
+  - company summary
+  - latest subscription
+  - users count
+  - departments count
+  - tasks count
+  - attachment storage usage
+  - last activity timestamp
+- Updated suspend flow:
+  - sets `status = SUSPENDED`
+  - sets `suspended_at`
+  - writes `COMPANY_SUSPENDED` audit log
+  - publishes `PLATFORM_COMPANY_SUSPENDED`
+- Updated activate flow:
+  - sets `status = ACTIVE`
+  - clears `suspended_at`
+  - writes `COMPANY_ACTIVATED` audit log
+  - publishes `PLATFORM_COMPANY_ACTIVATED`
+- Added suspended-company access enforcement:
+  - login and refresh are denied for suspended tenants
+  - tenant API requests are blocked when `company.suspended_at` is present
+  - platform administration routes remain available for platform permission checks
+- Kept this milestone company-management-only:
+  - no subscription management implementation
+  - no billing calculations
+  - no invoice generation
+  - no analytics aggregation
+  - no usage snapshot generation
+  - no tenant switching execution
+  - no platform settings persistence
+  - no frontend changes
+  - no search indexing
+  - no notifications
+- Added regression script:
+  - `test:platform-company-management`
+- Added regression coverage for:
+  - platform permission enforcement
+  - company listing
+  - company detail retrieval
+  - suspend company
+  - activate company
+  - suspended tenant login/API blocking
+  - tenant isolation preservation
+  - audit creation
+  - domain event publishing
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tenant-isolation` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-management` passed after rerunning outside the sandbox due to the known `tsx` IPC pipe restriction.
+
 Next checkpoint:
 
-- Step 4 Company management APIs.
+- Step 5 Subscription and billing management APIs.
 
 ## Recent Fixes
 
@@ -756,3 +821,4 @@ Recent completed commits:
 - `Add Phase 4 super admin database schema`
 - `Implement Phase 4 super admin permissions`
 - `Implement Phase 4 platform backend skeleton`
+- `Implement Phase 4 company management APIs`

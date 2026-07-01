@@ -1,5 +1,4 @@
 import { SetMetadata } from "@nestjs/common";
-
-export const PLATFORM_PERMISSIONS_KEY = "platform_permissions";
+import { PLATFORM_PERMISSIONS_KEY } from "../../../common/constants";
 
 export const PlatformPermission = (...permissions: string[]) => SetMetadata(PLATFORM_PERMISSIONS_KEY, permissions);

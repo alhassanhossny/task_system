@@ -8,6 +8,10 @@ import { PrismaService } from "../prisma/prisma.service";
 import { LoginDto } from "./dto/login.dto";
 
 type UserWithAccess = User & {
+  company: {
+    deletedAt: Date | null;
+    suspendedAt: Date | null;
+  };
   userRoles: Array<{
     role: {
       systemName: SystemRole;
@@ -44,6 +48,8 @@ export class AuthService {
       throw new UnauthorizedException("Invalid email or password");
     }
 
+    this.ensureCompanyCanAuthenticate(user);
+
     await this.prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() }
@@ -71,6 +77,8 @@ export class AuthService {
     if (!stored || stored.user.status !== UserStatus.ACTIVE || stored.user.deletedAt) {
       throw new UnauthorizedException("Invalid refresh token");
     }
+
+    this.ensureCompanyCanAuthenticate(stored.user);
 
     await this.prisma.refreshToken.update({
       where: { id: stored.id },
@@ -165,6 +173,12 @@ export class AuthService {
 
   private accessInclude() {
     return {
+      company: {
+        select: {
+          deletedAt: true,
+          suspendedAt: true
+        }
+      },
       userRoles: {
         where: { deletedAt: null },
         include: {
@@ -181,6 +195,12 @@ export class AuthService {
         }
       }
     } as const;
+  }
+
+  private ensureCompanyCanAuthenticate(user: UserWithAccess) {
+    if (user.company.deletedAt || user.company.suspendedAt) {
+      throw new UnauthorizedException("Company tenant is suspended");
+    }
   }
 
   private hashToken(token: string) {

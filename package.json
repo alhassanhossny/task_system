@@ -20,6 +20,7 @@
     "test:team-management": "corepack pnpm --filter @taskflow/api test:team-management",
     "test:global-search": "corepack pnpm --filter @taskflow/api test:global-search",
     "test:email-center": "corepack pnpm --filter @taskflow/api test:email-center",
+    "test:platform-company-management": "corepack pnpm --filter @taskflow/api test:platform-company-management",
     "format": "corepack pnpm -r format",
     "db:generate": "corepack pnpm --filter @taskflow/api prisma:generate",
     "db:migrate": "corepack pnpm --filter @taskflow/api prisma:migrate",

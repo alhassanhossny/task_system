@@ -1,4 +1,5 @@
 export const TENANT_HEADER = "x-company-id";
+export const PLATFORM_PERMISSIONS_KEY = "platform_permissions";
 
 export const PERMISSIONS = {
   platformRead: "platform:read",

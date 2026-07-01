@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from "@nestjs/swagger";
 import { PERMISSIONS } from "../../common/constants";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { RequestUser } from "../../common/types/request-user";
 import { PlatformPermission } from "./decorators/platform-permission.decorator";
 import { CreateSubscriptionDto } from "./dto/create-subscription.dto";
 import { CreateTenantSwitchDto } from "./dto/create-tenant-switch.dto";
@@ -40,8 +42,8 @@ export class PlatformController {
   @ApiParam({ name: "id", format: "uuid" })
   @ApiBody({ type: UpdateCompanyStatusDto, required: false })
   @Post("companies/:id/suspend")
-  suspendCompany(@Param("id") id: string, @Body() dto: UpdateCompanyStatusDto) {
-    return this.platformService.suspendCompany(id, dto ?? {});
+  suspendCompany(@CurrentUser() user: RequestUser, @Param("id") id: string, @Body() dto: UpdateCompanyStatusDto) {
+    return this.platformService.suspendCompany(id, user.id, dto ?? {});
   }
 
   @PlatformPermission(PERMISSIONS.platformManage)
@@ -49,8 +51,8 @@ export class PlatformController {
   @ApiParam({ name: "id", format: "uuid" })
   @ApiBody({ type: UpdateCompanyStatusDto, required: false })
   @Post("companies/:id/activate")
-  activateCompany(@Param("id") id: string, @Body() dto: UpdateCompanyStatusDto) {
-    return this.platformService.activateCompany(id, dto ?? {});
+  activateCompany(@CurrentUser() user: RequestUser, @Param("id") id: string, @Body() dto: UpdateCompanyStatusDto) {
+    return this.platformService.activateCompany(id, user.id, dto ?? {});
   }
 
   @PlatformPermission(PERMISSIONS.platformRead)
