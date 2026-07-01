@@ -30,6 +30,52 @@ enum CompanyStatus {
   @@map("company_status")
 }
 
+enum SubscriptionStatus {
+  TRIALING  @map("trialing")
+  ACTIVE    @map("active")
+  PAST_DUE  @map("past_due")
+  CANCELLED @map("cancelled")
+  EXPIRED   @map("expired")
+
+  @@map("subscription_status")
+}
+
+enum BillingInterval {
+  MONTHLY @map("monthly")
+  YEARLY  @map("yearly")
+
+  @@map("billing_interval")
+}
+
+enum SubscriptionInvoiceStatus {
+  DRAFT         @map("draft")
+  OPEN          @map("open")
+  PAID          @map("paid")
+  VOID          @map("void")
+  UNCOLLECTIBLE @map("uncollectible")
+
+  @@map("subscription_invoice_status")
+}
+
+enum CompanySwitchStatus {
+  ACTIVE  @map("active")
+  ENDED   @map("ended")
+  REVOKED @map("revoked")
+  EXPIRED @map("expired")
+
+  @@map("company_switch_status")
+}
+
+enum PlatformSettingValueType {
+  STRING  @map("string")
+  NUMBER  @map("number")
+  BOOLEAN @map("boolean")
+  JSON    @map("json")
+  SECRET  @map("secret")
+
+  @@map("platform_setting_value_type")
+}
+
 enum UserStatus {
   ACTIVE    @map("active")
   INACTIVE  @map("inactive")
@@ -206,6 +252,12 @@ model Company {
   plan          CompanyPlan   @default(STARTER)
   status        CompanyStatus @default(TRIAL)
   defaultLocale Locale        @default(AR) @map("default_locale")
+  primaryDomain String?       @unique @map("primary_domain")
+  billingEmail  String?       @map("billing_email")
+  supportEmail  String?       @map("support_email")
+  timezone      String        @default("UTC")
+  trialEndsAt   DateTime?     @map("trial_ends_at") @db.Timestamptz(6)
+  suspendedAt   DateTime?     @map("suspended_at") @db.Timestamptz(6)
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt     DateTime?     @map("deleted_at") @db.Timestamptz(6)
@@ -244,7 +296,15 @@ model Company {
   tags            Tag[]
   entityTags      EntityTag[]
   userPreferences UserPreference[]
+  subscriptions   CompanySubscription[]
+  subscriptionInvoices SubscriptionInvoice[]
+  usageSnapshots  PlatformUsageSnapshot[]
+  companySwitchSessions CompanySwitchSession[] @relation("CompanySwitchTarget")
+  actorCompanySwitchSessions CompanySwitchSession[] @relation("CompanySwitchActorCompany")
 
+  @@index([status])
+  @@index([plan])
+  @@index([trialEndsAt])
   @@map("companies")
 }
 
@@ -292,6 +352,7 @@ model User {
   preference         UserPreference?
   savedFilters       SavedFilter[]
   recentSearches     RecentSearch[]
+  companySwitchSessions CompanySwitchSession[] @relation("CompanySwitchActor")
 
   @@unique([companyId, email])
   @@index([companyId])
@@ -1029,4 +1090,146 @@ model UserPreference {
   @@unique([companyId, userId])
   @@index([companyId])
   @@map("user_preferences")
+}
+
+model SubscriptionPlan {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code          String      @unique
+  name          String
+  description   String?
+  tier          CompanyPlan @default(STARTER)
+  monthlyPrice  Decimal     @default(0) @map("monthly_price") @db.Decimal(10, 2)
+  yearlyPrice   Decimal     @default(0) @map("yearly_price") @db.Decimal(10, 2)
+  currency      String      @default("USD")
+  maxUsers      Int?        @map("max_users")
+  maxStorageMb  Int?        @map("max_storage_mb")
+  maxCompanies  Int?        @map("max_companies")
+  features      Json        @default("{}")
+  isActive      Boolean     @default(true) @map("is_active")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?   @map("deleted_at") @db.Timestamptz(6)
+
+  subscriptions CompanySubscription[]
+
+  @@index([tier, isActive])
+  @@map("subscription_plans")
+}
+
+model CompanySubscription {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId          String             @map("company_id") @db.Uuid
+  planId             String             @map("plan_id") @db.Uuid
+  status             SubscriptionStatus @default(TRIALING)
+  billingInterval    BillingInterval    @default(MONTHLY) @map("billing_interval")
+  seats              Int                @default(1)
+  startsAt           DateTime           @default(now()) @map("starts_at") @db.Timestamptz(6)
+  trialEndsAt        DateTime?          @map("trial_ends_at") @db.Timestamptz(6)
+  currentPeriodStart DateTime?          @map("current_period_start") @db.Timestamptz(6)
+  currentPeriodEnd   DateTime?          @map("current_period_end") @db.Timestamptz(6)
+  cancelledAt        DateTime?          @map("cancelled_at") @db.Timestamptz(6)
+  metadata           Json               @default("{}")
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime?          @map("deleted_at") @db.Timestamptz(6)
+
+  company  Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  plan     SubscriptionPlan      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  invoices SubscriptionInvoice[]
+
+  @@index([companyId, status])
+  @@index([planId, status])
+  @@index([currentPeriodEnd])
+  @@map("company_subscriptions")
+}
+
+model SubscriptionInvoice {
+  id             String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String                    @map("company_id") @db.Uuid
+  subscriptionId String?                   @map("subscription_id") @db.Uuid
+  invoiceNumber  String                    @map("invoice_number")
+  status         SubscriptionInvoiceStatus @default(DRAFT)
+  currency       String                    @default("USD")
+  amountDue      Decimal                   @default(0) @map("amount_due") @db.Decimal(12, 2)
+  amountPaid     Decimal                   @default(0) @map("amount_paid") @db.Decimal(12, 2)
+  dueAt          DateTime?                 @map("due_at") @db.Timestamptz(6)
+  paidAt         DateTime?                 @map("paid_at") @db.Timestamptz(6)
+  voidedAt       DateTime?                 @map("voided_at") @db.Timestamptz(6)
+  metadata       Json                      @default("{}")
+  createdAt      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?                 @map("deleted_at") @db.Timestamptz(6)
+
+  company      Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  subscription CompanySubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, invoiceNumber])
+  @@index([companyId, status, dueAt])
+  @@index([subscriptionId])
+  @@map("subscription_invoices")
+}
+
+model PlatformUsageSnapshot {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId          String    @map("company_id") @db.Uuid
+  periodStart        DateTime  @map("period_start") @db.Timestamptz(6)
+  periodEnd          DateTime  @map("period_end") @db.Timestamptz(6)
+  usersCount         Int       @default(0) @map("users_count")
+  activeUsersCount   Int       @default(0) @map("active_users_count")
+  tasksCount         Int       @default(0) @map("tasks_count")
+  openTasksCount     Int       @default(0) @map("open_tasks_count")
+  leaveRequestsCount Int       @default(0) @map("leave_requests_count")
+  emailsSentCount    Int       @default(0) @map("emails_sent_count")
+  storageBytes       BigInt    @default(0) @map("storage_bytes")
+  metadata           Json      @default("{}")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, periodStart, periodEnd])
+  @@index([companyId, periodEnd])
+  @@map("platform_usage_snapshots")
+}
+
+model CompanySwitchSession {
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String              @map("company_id") @db.Uuid
+  actorCompanyId String              @map("actor_company_id") @db.Uuid
+  actorUserId    String              @map("actor_user_id") @db.Uuid
+  status         CompanySwitchStatus @default(ACTIVE)
+  reason         String?
+  startedAt      DateTime            @default(now()) @map("started_at") @db.Timestamptz(6)
+  expiresAt      DateTime            @map("expires_at") @db.Timestamptz(6)
+  endedAt        DateTime?           @map("ended_at") @db.Timestamptz(6)
+  revokedAt      DateTime?           @map("revoked_at") @db.Timestamptz(6)
+  metadata       Json                @default("{}")
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?           @map("deleted_at") @db.Timestamptz(6)
+
+  targetCompany Company @relation("CompanySwitchTarget", fields: [companyId], references: [id], onDelete: Restrict)
+  actorCompany  Company @relation("CompanySwitchActorCompany", fields: [actorCompanyId], references: [id], onDelete: Restrict)
+  actorUser     User    @relation("CompanySwitchActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status])
+  @@index([actorUserId, status])
+  @@index([expiresAt])
+  @@map("company_switch_sessions")
+}
+
+model PlatformSetting {
+  id          String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String                   @unique
+  value       Json
+  valueType   PlatformSettingValueType @default(STRING) @map("value_type")
+  description String?
+  isSecret    Boolean                  @default(false) @map("is_secret")
+  createdAt   DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime?                @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([valueType])
+  @@map("platform_settings")
 }

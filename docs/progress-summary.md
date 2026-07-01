@@ -4,11 +4,11 @@ Last updated: 2026-07-01
 
 ## Current Status
 
-Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, Phase 2B Leave Requests Core, Phase 2B.1 Leave Enhancements, Phase 2B.2 Manager Hierarchy & Team Management, Phase 2C Global Search & Productivity Layer, and Phase 3 Email Center are implemented.
+Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, Phase 2B Leave Requests Core, Phase 2B.1 Leave Enhancements, Phase 2B.2 Manager Hierarchy & Team Management, Phase 2C Global Search & Productivity Layer, and Phase 3 Email Center are implemented. Phase 4 Super Admin SaaS Portal is in progress.
 
 Current Git state:
 
-- Branch: `feature/email-center`
+- Branch: `feature-super-admin-portal`
 - Base branch `main` includes merged Phase 2B through `f902ce7 Update Phase 2B progress summary`.
 - Latest implementation commit: `Implement Phase 2B.1 leave enhancements`.
 - Latest login fix commit: `925603c Fix local login CORS origins`.
@@ -16,7 +16,8 @@ Current Git state:
 - Latest Phase 2B.2 work: `Implement Phase 2B.2 manager hierarchy and team management`.
 - Latest Phase 2C work: `Implement Phase 2C global search and productivity layer`.
 - Latest Phase 3 work: `Implement Phase 3 email center`.
-- Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature/email-center`
+- Latest Phase 4 work: `Add Phase 4 super admin database schema`.
+- Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature-super-admin-portal`
 
 The repository now contains:
 
@@ -471,6 +472,52 @@ Follow-up work:
 - Optional inbound mailbox ingestion if Inbox becomes a true received-mail workflow.
 - Super Admin SaaS portal should be the next major branch after review.
 
+## In Progress Phase 4 Super Admin SaaS Portal
+
+Current checkpoint: Step 1 database schema and migration only.
+
+Completed checkpoints:
+
+- Created branch `feature-super-admin-portal` from the completed Phase 3 Email Center work.
+- Inspected existing Prisma schema, UUID conventions, migration style, multi-tenant relations, audit/activity/search tables, company model, role/permission model, and recent Phase 2C/Phase 3 migrations.
+- Added Phase 4 enum layer:
+  - `SubscriptionStatus`
+  - `BillingInterval`
+  - `SubscriptionInvoiceStatus`
+  - `CompanySwitchStatus`
+  - `PlatformSettingValueType`
+- Extended `companies` for SaaS administration:
+  - `primary_domain`
+  - `billing_email`
+  - `support_email`
+  - `timezone`
+  - `trial_ends_at`
+  - `suspended_at`
+- Added Phase 4 database models:
+  - `subscription_plans`
+  - `company_subscriptions`
+  - `subscription_invoices`
+  - `platform_usage_snapshots`
+  - `company_switch_sessions`
+  - `platform_settings`
+- Added migration `20260701170000_phase_4_super_admin_schema`.
+- Kept this milestone database-only:
+  - no permissions
+  - no seed permission changes
+  - no backend services
+  - no controllers
+  - no frontend changes
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `prisma migrate deploy` applied `20260701170000_phase_4_super_admin_schema` successfully against the local PostgreSQL database.
+  - `corepack pnpm db:seed` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+
+Next checkpoint:
+
+- Step 2 Super Admin permissions.
+
 ## Recent Fixes
 
 - Added locale root redirects:
@@ -598,3 +645,4 @@ Recent completed commits:
 - `Implement Phase 2B.2 manager hierarchy and team management`
 - `Implement Phase 2C global search and productivity layer`
 - `Implement Phase 3 email center`
+- `Add Phase 4 super admin database schema`
