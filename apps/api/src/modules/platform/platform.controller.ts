@@ -101,17 +101,35 @@ export class PlatformController {
   }
 
   @PlatformPermission(PERMISSIONS.platformRead)
-  @ApiOperation({ summary: "Get platform overview analytics placeholder" })
+  @RequirePermissions(PERMISSIONS.analyticsRead)
+  @ApiOperation({ summary: "Get platform overview analytics" })
   @Get("analytics/overview")
   getPlatformOverview(@Query() query: PlatformAnalyticsQueryDto) {
     return this.platformService.getPlatformOverview(query);
   }
 
   @PlatformPermission(PERMISSIONS.platformRead)
-  @ApiOperation({ summary: "Get platform usage metrics placeholder" })
+  @RequirePermissions(PERMISSIONS.analyticsRead)
+  @ApiOperation({ summary: "Get platform usage metrics" })
   @Get("analytics/usage")
   getUsageMetrics(@Query() query: PlatformAnalyticsQueryDto) {
     return this.platformService.getUsageMetrics(query);
+  }
+
+  @PlatformPermission(PERMISSIONS.platformRead)
+  @RequirePermissions(PERMISSIONS.analyticsRead)
+  @ApiOperation({ summary: "Get top companies by usage" })
+  @Get("analytics/top-companies")
+  getTopCompanies(@Query() query: PlatformAnalyticsQueryDto) {
+    return this.platformService.getTopCompanies(query);
+  }
+
+  @PlatformPermission(PERMISSIONS.platformRead)
+  @RequirePermissions(PERMISSIONS.analyticsRead)
+  @ApiOperation({ summary: "Get active subscription distribution by plan" })
+  @Get("analytics/subscription-distribution")
+  getSubscriptionDistribution() {
+    return this.platformService.getSubscriptionDistribution();
   }
 
   @PlatformPermission(PERMISSIONS.platformRead)

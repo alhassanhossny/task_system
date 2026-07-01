@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
-import { BillingInterval, CompanyPlan, CompanyStatus, CompanySwitchStatus, EntityType, Prisma, SubscriptionStatus } from "@prisma/client";
+import { BillingInterval, CompanyPlan, CompanyStatus, CompanySwitchStatus, EmailStatus, EntityType, Prisma, SubscriptionStatus } from "@prisma/client";
 import { RequestUser } from "../../common/types/request-user";
 import { DomainEventBus } from "../../domain-events/domain-event-bus.service";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -11,7 +11,7 @@ import { ListCompaniesDto } from "./dto/list-companies.dto";
 import { ListPlansDto } from "./dto/list-plans.dto";
 import { ListSubscriptionsDto } from "./dto/list-subscriptions.dto";
 import { ListSwitchSessionsDto } from "./dto/list-switch-sessions.dto";
-import { PlatformAnalyticsQueryDto } from "./dto/platform-analytics-query.dto";
+import { PLATFORM_ANALYTICS_RANGES, PlatformAnalyticsQueryDto, PlatformAnalyticsRange } from "./dto/platform-analytics-query.dto";
 import { UpdateCompanyStatusDto } from "./dto/update-company-status.dto";
 import { UpdatePlatformSettingDto } from "./dto/update-platform-setting.dto";
 import { UpdateSubscriptionDto } from "./dto/update-subscription.dto";
@@ -80,6 +80,53 @@ type CompanyDetail = {
   tasksCount: number;
   storageUsage: number;
   lastActivityAt: Date | null;
+};
+
+type PlatformOverview = {
+  companies: {
+    total: number;
+    active: number;
+    suspended: number;
+    trialing: number;
+  };
+  subscriptions: {
+    total: number;
+    active: number;
+    expired: number;
+    cancelled: number;
+  };
+  users: {
+    total: number;
+  };
+  usage: {
+    totalTasks: number;
+    totalLeaveRequests: number;
+    totalEmails: number;
+    totalAttachments: number;
+  };
+};
+
+type UsageMetricPoint = {
+  date: string;
+  value: number;
+};
+
+type PlatformUsageMetrics = {
+  range: PlatformAnalyticsRange;
+  companies: UsageMetricPoint[];
+  users: UsageMetricPoint[];
+  tasks: UsageMetricPoint[];
+  emails: UsageMetricPoint[];
+};
+
+type TopCompanyUsage = {
+  companyId: string;
+  companyName: string;
+  users: number;
+  tasks: number;
+  emails: number;
+  storageBytes: number;
+  plan: CompanyPlan;
 };
 
 @Injectable()
@@ -418,22 +465,185 @@ export class PlatformService {
     return subscription;
   }
 
-  getPlatformOverview(query: PlatformAnalyticsQueryDto): PlatformItemResponse<{
-    companies: number;
-    activeSubscriptions: number;
-    users: number;
-    query: PlatformAnalyticsQueryDto;
-  }> {
-    return this.item({
-      companies: 0,
-      activeSubscriptions: 0,
-      users: 0,
-      query
-    });
+  async getPlatformOverview(query: PlatformAnalyticsQueryDto = {}): Promise<PlatformOverview> {
+    const companyIds = await this.platformCompanyIds(query.companyId);
+    const companyScope = { id: { in: companyIds }, deletedAt: null };
+    const tenantScope = { companyId: { in: companyIds }, deletedAt: null };
+    const subscriptionScope = { companyId: { in: companyIds }, deletedAt: null };
+
+    const [
+      companiesTotal,
+      companiesActive,
+      companiesSuspended,
+      companiesTrialing,
+      subscriptionsTotal,
+      subscriptionsActive,
+      subscriptionsExpired,
+      subscriptionsCancelled,
+      usersTotal,
+      totalTasks,
+      totalLeaveRequests,
+      totalEmails,
+      totalAttachments
+    ] = await Promise.all([
+      this.prisma.company.count({ where: companyScope }),
+      this.prisma.company.count({ where: { ...companyScope, status: CompanyStatus.ACTIVE } }),
+      this.prisma.company.count({ where: { ...companyScope, status: CompanyStatus.SUSPENDED } }),
+      this.prisma.company.count({ where: { ...companyScope, status: CompanyStatus.TRIAL } }),
+      this.prisma.companySubscription.count({ where: subscriptionScope }),
+      this.prisma.companySubscription.count({ where: { ...subscriptionScope, status: SubscriptionStatus.ACTIVE } }),
+      this.prisma.companySubscription.count({ where: { ...subscriptionScope, status: SubscriptionStatus.EXPIRED } }),
+      this.prisma.companySubscription.count({ where: { ...subscriptionScope, status: SubscriptionStatus.CANCELLED } }),
+      this.prisma.user.count({ where: tenantScope }),
+      this.prisma.task.count({ where: tenantScope }),
+      this.prisma.leaveRequest.count({ where: tenantScope }),
+      this.prisma.email.count({ where: tenantScope }),
+      this.prisma.attachment.count({ where: tenantScope })
+    ]);
+
+    return {
+      companies: {
+        total: companiesTotal,
+        active: companiesActive,
+        suspended: companiesSuspended,
+        trialing: companiesTrialing
+      },
+      subscriptions: {
+        total: subscriptionsTotal,
+        active: subscriptionsActive,
+        expired: subscriptionsExpired,
+        cancelled: subscriptionsCancelled
+      },
+      users: {
+        total: usersTotal
+      },
+      usage: {
+        totalTasks,
+        totalLeaveRequests,
+        totalEmails,
+        totalAttachments
+      }
+    };
   }
 
-  getUsageMetrics(query: PlatformAnalyticsQueryDto): PlatformListResponse<{ companyId: string; users: number; tasks: number }, PlatformAnalyticsQueryDto> {
-    return this.list([], query);
+  async getUsageMetrics(query: PlatformAnalyticsQueryDto = {}): Promise<PlatformUsageMetrics> {
+    const range = this.analyticsRange(query.range);
+    const { periodStart, periodEnd } = this.analyticsPeriod(range, query);
+    const companyIds = await this.platformCompanyIds(query.companyId);
+    const snapshots = await this.prisma.platformUsageSnapshot.findMany({
+      where: {
+        companyId: { in: companyIds },
+        deletedAt: null,
+        periodStart: { gte: periodStart },
+        periodEnd: { lte: periodEnd }
+      },
+      orderBy: { periodStart: "asc" }
+    });
+    const grouped = new Map<
+      string,
+      {
+        companyIds: Set<string>;
+        users: number;
+        tasks: number;
+        emails: number;
+      }
+    >();
+
+    for (const snapshot of snapshots) {
+      const key = this.dateKey(snapshot.periodStart);
+      const current = grouped.get(key) ?? {
+        companyIds: new Set<string>(),
+        users: 0,
+        tasks: 0,
+        emails: 0
+      };
+      current.companyIds.add(snapshot.companyId);
+      current.users += snapshot.usersCount;
+      current.tasks += snapshot.tasksCount;
+      current.emails += snapshot.emailsSentCount;
+      grouped.set(key, current);
+    }
+
+    const dates = this.dateKeysBetween(periodStart, periodEnd);
+
+    return {
+      range,
+      companies: dates.map((date) => ({ date, value: grouped.get(date)?.companyIds.size ?? 0 })),
+      users: dates.map((date) => ({ date, value: grouped.get(date)?.users ?? 0 })),
+      tasks: dates.map((date) => ({ date, value: grouped.get(date)?.tasks ?? 0 })),
+      emails: dates.map((date) => ({ date, value: grouped.get(date)?.emails ?? 0 }))
+    };
+  }
+
+  async getTopCompanies(query: PlatformAnalyticsQueryDto = {}): Promise<TopCompanyUsage[]> {
+    const companyIds = await this.platformCompanyIds(query.companyId);
+    const companies = await this.prisma.company.findMany({
+      where: { id: { in: companyIds }, deletedAt: null },
+      select: {
+        id: true,
+        name: true,
+        plan: true
+      }
+    });
+
+    const usage = await Promise.all(
+      companies.map(async (company) => {
+        const [users, tasks, emails, storage, activeSubscription] = await Promise.all([
+          this.prisma.user.count({ where: { companyId: company.id, deletedAt: null } }),
+          this.prisma.task.count({ where: { companyId: company.id, deletedAt: null } }),
+          this.prisma.email.count({ where: { companyId: company.id, deletedAt: null } }),
+          this.prisma.attachment.aggregate({ where: { companyId: company.id, deletedAt: null }, _sum: { fileSize: true } }),
+          this.prisma.companySubscription.findFirst({
+            where: {
+              companyId: company.id,
+              deletedAt: null,
+              status: { in: [SubscriptionStatus.TRIALING, SubscriptionStatus.ACTIVE] }
+            },
+            orderBy: { createdAt: "desc" },
+            include: { plan: true }
+          })
+        ]);
+
+        return {
+          companyId: company.id,
+          companyName: company.name,
+          users,
+          tasks,
+          emails,
+          storageBytes: storage._sum.fileSize ?? 0,
+          plan: activeSubscription?.plan.tier ?? company.plan
+        };
+      })
+    );
+
+    return usage
+      .sort((a, b) => this.companyUsageScore(b) - this.companyUsageScore(a))
+      .slice(0, 10);
+  }
+
+  async getSubscriptionDistribution(): Promise<Record<CompanyPlan, number>> {
+    const companyIds = await this.platformCompanyIds();
+    const distribution = this.emptyPlanDistribution();
+    const subscriptions = await this.prisma.companySubscription.findMany({
+      where: {
+        companyId: { in: companyIds },
+        deletedAt: null,
+        status: { in: [SubscriptionStatus.TRIALING, SubscriptionStatus.ACTIVE] }
+      },
+      orderBy: { createdAt: "desc" },
+      include: { plan: true }
+    });
+    const seenCompanies = new Set<string>();
+
+    for (const subscription of subscriptions) {
+      if (seenCompanies.has(subscription.companyId)) {
+        continue;
+      }
+      seenCompanies.add(subscription.companyId);
+      distribution[subscription.plan.tier] += 1;
+    }
+
+    return distribution;
   }
 
   listSettings(): PlatformListResponse<{ id: string; key: string; isSecret: boolean }> {
@@ -571,6 +781,76 @@ export class PlatformService {
     });
 
     return session;
+  }
+
+  private async platformCompanyIds(companyId?: string) {
+    const companies = await this.prisma.company.findMany({
+      where: {
+        deletedAt: null,
+        ...(companyId ? { id: companyId } : {})
+      },
+      select: { id: true }
+    });
+
+    return companies.map((company) => company.id);
+  }
+
+  private analyticsRange(range: PlatformAnalyticsRange | undefined): PlatformAnalyticsRange {
+    return range && PLATFORM_ANALYTICS_RANGES.includes(range) ? range : "30d";
+  }
+
+  private analyticsPeriod(range: PlatformAnalyticsRange, query: PlatformAnalyticsQueryDto) {
+    const periodEnd = query.periodTo ? this.utcEndOfDay(new Date(query.periodTo)) : this.utcEndOfDay(new Date());
+    const rangeDays: Record<PlatformAnalyticsRange, number> = {
+      "7d": 7,
+      "30d": 30,
+      "90d": 90,
+      "365d": 365
+    };
+    const periodStart = query.periodFrom
+      ? this.utcStartOfDay(new Date(query.periodFrom))
+      : this.utcStartOfDay(new Date(periodEnd.getTime() - (rangeDays[range] - 1) * 24 * 60 * 60 * 1000));
+
+    return { periodStart, periodEnd };
+  }
+
+  private utcStartOfDay(date: Date) {
+    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
+  }
+
+  private utcEndOfDay(date: Date) {
+    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999));
+  }
+
+  private dateKey(date: Date) {
+    return date.toISOString().slice(0, 10);
+  }
+
+  private dateKeysBetween(periodStart: Date, periodEnd: Date) {
+    const dates: string[] = [];
+    const cursor = this.utcStartOfDay(periodStart);
+    const end = this.utcStartOfDay(periodEnd);
+
+    while (cursor <= end) {
+      dates.push(this.dateKey(cursor));
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+
+    return dates;
+  }
+
+  private emptyPlanDistribution(): Record<CompanyPlan, number> {
+    return Object.values(CompanyPlan).reduce(
+      (distribution, plan) => ({
+        ...distribution,
+        [plan]: 0
+      }),
+      {} as Record<CompanyPlan, number>
+    );
+  }
+
+  private companyUsageScore(company: Pick<TopCompanyUsage, "users" | "tasks" | "emails" | "storageBytes">) {
+    return company.users + company.tasks + company.emails + Math.ceil(company.storageBytes / 1024 / 1024);
   }
 
   private list<T, Q = unknown>(data: T[], query?: Q): PlatformListResponse<T, Q> {

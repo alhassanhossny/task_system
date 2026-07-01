@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";
 import { PlatformController } from "./platform.controller";
+import { PlatformUsageSnapshotsService } from "./platform-usage-snapshots.service";
 import { PlatformService } from "./platform.service";
 
 @Module({
@@ -18,7 +19,8 @@ import { PlatformService } from "./platform.service";
     })
   ],
   controllers: [PlatformController],
-  providers: [PlatformService]
+  providers: [PlatformService, PlatformUsageSnapshotsService],
+  exports: [PlatformService, PlatformUsageSnapshotsService]
 })
 export class PlatformModule {}
 

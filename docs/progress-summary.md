@@ -16,7 +16,7 @@ Current Git state:
 - Latest Phase 2B.2 work: `Implement Phase 2B.2 manager hierarchy and team management`.
 - Latest Phase 2C work: `Implement Phase 2C global search and productivity layer`.
 - Latest Phase 3 work: `Implement Phase 3 email center`.
-- Latest Phase 4 work: `Implement Phase 4 company switching service`.
+- Latest Phase 4 work: `Implement Phase 4 platform analytics and usage metrics`.
 - Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature-super-admin-portal`
 
 The repository now contains:
@@ -474,7 +474,7 @@ Follow-up work:
 
 ## In Progress Phase 4 Super Admin SaaS Portal
 
-Current checkpoint: Step 6 Company Switching Service completed.
+Current checkpoint: Step 7 Platform Analytics and Usage Metrics completed.
 
 Completed checkpoints:
 
@@ -854,7 +854,94 @@ Completed Step 6 checkpoints:
 
 Next checkpoint:
 
-- Step 7 Platform analytics and usage metrics.
+- Step 7 Platform Analytics and Usage Metrics was completed as an analytics-only Super Admin reporting milestone.
+
+Completed Step 7 checkpoints:
+
+- Replaced platform analytics placeholder methods with Prisma-backed implementations:
+  - `getPlatformOverview()`
+  - `getUsageMetrics()`
+  - `getTopCompanies()`
+  - `getSubscriptionDistribution()`
+- Added analytics endpoints under `/api/v1/platform`:
+  - `GET /api/v1/platform/analytics/overview`
+  - `GET /api/v1/platform/analytics/usage`
+  - `GET /api/v1/platform/analytics/top-companies`
+  - `GET /api/v1/platform/analytics/subscription-distribution`
+- Added analytics query range support for:
+  - `7d`
+  - `30d`
+  - `90d`
+  - `365d`
+- Overview analytics now report:
+  - total, active, suspended, and trialing companies
+  - total, active, expired, and cancelled subscriptions
+  - total users
+  - total tasks, leave requests, emails, and attachments
+- Usage metrics now read `platform_usage_snapshots` for chart-ready daily series:
+  - companies
+  - users
+  - tasks
+  - emails sent
+- Added `PlatformUsageSnapshotsService` for:
+  - daily snapshot generation
+  - per-company metric collection
+  - idempotent upsert by company/day
+  - storage byte aggregation from attachments
+  - subscription plan metadata capture
+- Added BullMQ queue scaffold:
+  - queue name `platform-usage-snapshot`
+  - job name `generate-daily`
+  - daily repeat pattern `0 1 * * *`
+- Added platform usage snapshot event:
+  - `PLATFORM_USAGE_SNAPSHOT_CREATED`
+- Added manual snapshot audit action:
+  - `USAGE_SNAPSHOT_GENERATED`
+- Added analytics endpoint permission checks using:
+  - `analytics:read`
+  alongside platform-level `platform:read`.
+- Kept this milestone analytics-only:
+  - no frontend dashboard implementation
+  - no billing automation
+  - no invoice generation
+  - no platform settings persistence
+  - no tenant switching changes
+  - no notifications
+  - no search indexing
+- Added regression script:
+  - `test:platform-analytics`
+- Added regression coverage for:
+  - platform overview counts
+  - soft-deleted company/entity exclusion
+  - subscription status counting
+  - usage range aggregation
+  - daily snapshot creation
+  - duplicate-day prevention
+  - storage byte calculations
+  - top company usage reporting
+  - subscription distribution reporting
+  - Super Admin analytics permission enforcement
+  - intentional cross-tenant platform reporting
+- Added root `AGENTS.md` with another-machine development instructions:
+  - setup steps
+  - validation commands
+  - platform test commands
+  - architecture rules
+  - current Phase 4 status
+  - Git and remote safety notes
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tenant-isolation` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-management` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-subscriptions` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-switching` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-analytics` passed after rerunning outside the sandbox due to the known `tsx` IPC pipe restriction.
+
+Next checkpoint:
+
+- Step 8 Platform settings management.
 
 ## Recent Fixes
 
@@ -918,6 +1005,10 @@ corepack pnpm test:permissions
 corepack pnpm test:team-management
 corepack pnpm test:global-search
 corepack pnpm test:email-center
+corepack pnpm test:platform-company-management
+corepack pnpm test:platform-subscriptions
+corepack pnpm test:platform-company-switching
+corepack pnpm test:platform-analytics
 ```
 
 Additional local smoke checks completed:
@@ -989,3 +1080,4 @@ Recent completed commits:
 - `Implement Phase 4 company management APIs`
 - `Implement Phase 4 subscription management APIs`
 - `Implement Phase 4 company switching service`
+- `Implement Phase 4 platform analytics and usage metrics`
