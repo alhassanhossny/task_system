@@ -30,8 +30,19 @@ const ids = {
 };
 
 const permissionSeeds = [
+  ["read", "platform", "Read platform administration data"],
+  ["manage", "platform", "Manage platform administration"],
   ["read", "companies", "Read companies"],
   ["write", "companies", "Create and update companies"],
+  ["create", "companies", "Create tenant companies"],
+  ["update", "companies", "Update tenant companies"],
+  ["suspend", "companies", "Suspend tenant companies"],
+  ["read", "subscriptions", "Read company subscriptions"],
+  ["manage", "subscriptions", "Manage company subscriptions"],
+  ["read", "platform_settings", "Read platform settings"],
+  ["update", "platform_settings", "Update platform settings"],
+  ["read", "analytics", "Read platform analytics"],
+  ["execute", "tenant_switch", "Switch into tenant context"],
   ["read", "users", "Read users"],
   ["write", "users", "Create and update users"],
   ["view_team", "users", "View direct reports"],
@@ -102,9 +113,88 @@ const tenantRoleSeeds = [
 
 const permissionKey = (action: string, subject: string) => `${subject}:${action}`;
 
+const tenantAdminPermissions = [
+  "companies:read",
+  "companies:write",
+  "users:read",
+  "users:write",
+  "users:view_team",
+  "roles:read",
+  "roles:write",
+  "departments:read",
+  "departments:write",
+  "audit_logs:read",
+  "activities:read",
+  "attachments:read",
+  "attachments:write",
+  "comments:read",
+  "comments:write",
+  "notifications:read",
+  "notifications:write",
+  "smtp_settings:read",
+  "smtp_settings:write",
+  "search:read",
+  "saved_filters:read",
+  "saved_filters:write",
+  "approval_workflows:read",
+  "approval_workflows:write",
+  "tags:read",
+  "tags:write",
+  "user_preferences:read",
+  "user_preferences:write",
+  "tasks:read",
+  "tasks:create",
+  "tasks:update",
+  "tasks:delete",
+  "tasks:assign",
+  "tasks:comment",
+  "tasks:attach",
+  "tasks:complete",
+  "tasks:view_team",
+  "tasks:assign_team",
+  "leave_requests:read",
+  "leave_requests:submit",
+  "leave_requests:update",
+  "leave_requests:cancel",
+  "leave_requests:approve",
+  "leave_requests:reject",
+  "leave_requests:view_team",
+  "leave_requests:approve_team",
+  "leave_requests:reject_team",
+  "calendar:view_team",
+  "leave_types:read",
+  "leave_types:write",
+  "leave_balances:read",
+  "leave_balances:write",
+  "leave_settings:read",
+  "leave_settings:write",
+  "emails:read",
+  "emails:create",
+  "emails:update",
+  "emails:delete",
+  "emails:send",
+  "email_templates:read",
+  "email_templates:write",
+  "email_templates:manage"
+] as const;
+
+const superAdminOnlyPermissions = new Set([
+  "platform:read",
+  "platform:manage",
+  "companies:create",
+  "companies:update",
+  "companies:suspend",
+  "subscriptions:read",
+  "subscriptions:manage",
+  "platform_settings:read",
+  "platform_settings:update",
+  "analytics:read",
+  "tenant_switch:execute"
+]);
+
 const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
   [SystemRole.SUPER_ADMIN]: ["*"],
-  [SystemRole.COMPANY_ADMIN]: ["*"],
+  [SystemRole.COMPANY_ADMIN]: tenantAdminPermissions,
   [SystemRole.MANAGER]: [
     "users:read",
     "users:view_team",
@@ -231,6 +321,9 @@ async function seedRoles(companyId: string, includeSuperAdmin: boolean) {
 async function linkRolePermissions(companyId: string) {
   const roles = await prisma.role.findMany({ where: { companyId } });
   const permissions = await prisma.permission.findMany({ where: { companyId } });
+  const superAdminOnlyPermissionIds = permissions
+    .filter((permission) => superAdminOnlyPermissions.has(permissionKey(permission.action, permission.subject)))
+    .map((permission) => permission.id);
 
   for (const role of roles) {
     const allowedKeys = new Set(rolePermissionMatrix[role.systemName]);
@@ -245,8 +338,20 @@ async function linkRolePermissions(companyId: string) {
             permissionId: permission.id
           }
         },
-        update: {},
+        update: { deletedAt: null },
         create: { companyId, roleId: role.id, permissionId: permission.id }
+      });
+    }
+
+    if (role.systemName !== SystemRole.SUPER_ADMIN && superAdminOnlyPermissionIds.length) {
+      await prisma.rolePermission.updateMany({
+        where: {
+          companyId,
+          roleId: role.id,
+          permissionId: { in: superAdminOnlyPermissionIds },
+          deletedAt: null
+        },
+        data: { deletedAt: new Date() }
       });
     }
   }

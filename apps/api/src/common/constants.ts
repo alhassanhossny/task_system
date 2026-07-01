@@ -1,8 +1,19 @@
 export const TENANT_HEADER = "x-company-id";
 
 export const PERMISSIONS = {
+  platformRead: "platform:read",
+  platformManage: "platform:manage",
   companiesRead: "companies:read",
   companiesWrite: "companies:write",
+  companiesCreate: "companies:create",
+  companiesUpdate: "companies:update",
+  companiesSuspend: "companies:suspend",
+  subscriptionsRead: "subscriptions:read",
+  subscriptionsManage: "subscriptions:manage",
+  platformSettingsRead: "platform_settings:read",
+  platformSettingsUpdate: "platform_settings:update",
+  analyticsRead: "analytics:read",
+  tenantSwitchExecute: "tenant_switch:execute",
   usersRead: "users:read",
   usersWrite: "users:write",
   usersViewTeam: "users:view_team",

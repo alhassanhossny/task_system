@@ -16,7 +16,7 @@ Current Git state:
 - Latest Phase 2B.2 work: `Implement Phase 2B.2 manager hierarchy and team management`.
 - Latest Phase 2C work: `Implement Phase 2C global search and productivity layer`.
 - Latest Phase 3 work: `Implement Phase 3 email center`.
-- Latest Phase 4 work: `Add Phase 4 super admin database schema`.
+- Latest Phase 4 work: `Implement Phase 4 super admin permissions`.
 - Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature-super-admin-portal`
 
 The repository now contains:
@@ -474,7 +474,7 @@ Follow-up work:
 
 ## In Progress Phase 4 Super Admin SaaS Portal
 
-Current checkpoint: Step 1 database schema and migration only.
+Current checkpoint: Step 2 Super Admin permission layer completed.
 
 Completed checkpoints:
 
@@ -516,7 +516,47 @@ Completed checkpoints:
 
 Next checkpoint:
 
-- Step 2 Super Admin permissions.
+- Step 2 Super Admin permissions was completed as a permission and authorization scaffolding-only milestone.
+
+Completed Step 2 checkpoints:
+
+- Added platform-level permission constants in the API and shared config:
+  - `platform:read`
+  - `platform:manage`
+- Added company administration permission constants:
+  - `companies:create`
+  - `companies:update`
+  - `companies:suspend`
+- Added subscription permission constants:
+  - `subscriptions:read`
+  - `subscriptions:manage`
+- Added platform settings permission constants:
+  - `platform_settings:read`
+  - `platform_settings:update`
+- Added usage analytics permission constant:
+  - `analytics:read`
+- Added tenant switching permission constant:
+  - `tenant_switch:execute`
+- Updated Prisma seed permission records for all new Phase 4 permission keys.
+- Replaced the Company Admin wildcard permission assignment with an explicit tenant-admin permission matrix.
+- Kept all new platform and SaaS administration permissions Super Admin-only.
+- Added a seed safeguard that soft-deletes Super Admin-only permissions from non-Super-Admin roles if they ever exist from previous seed runs.
+- Kept this milestone permission-only:
+  - no controllers
+  - no services
+  - no endpoints
+  - no frontend pages
+  - no navigation changes
+  - no business seed data
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `corepack pnpm db:seed` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+
+Next checkpoint:
+
+- Step 3 Super Admin backend module skeleton.
 
 ## Recent Fixes
 
@@ -646,3 +686,4 @@ Recent completed commits:
 - `Implement Phase 2C global search and productivity layer`
 - `Implement Phase 3 email center`
 - `Add Phase 4 super admin database schema`
+- `Implement Phase 4 super admin permissions`
