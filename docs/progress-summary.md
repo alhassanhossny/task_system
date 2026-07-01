@@ -4,17 +4,18 @@ Last updated: 2026-07-01
 
 ## Current Status
 
-Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, Phase 2B Leave Requests Core, Phase 2B.1 Leave Enhancements, and Phase 2B.2 Manager Hierarchy & Team Management are implemented. The project now has production-style task, time-off, and manager team workflows using the shared SaaS infrastructure.
+Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, Phase 2B Leave Requests Core, Phase 2B.1 Leave Enhancements, Phase 2B.2 Manager Hierarchy & Team Management, and Phase 2C Global Search & Productivity Layer are implemented.
 
 Current Git state:
 
-- Branch: `feature/leave-enhancements`
+- Branch: `feature/global-search`
 - Base branch `main` includes merged Phase 2B through `f902ce7 Update Phase 2B progress summary`.
 - Latest implementation commit: `Implement Phase 2B.1 leave enhancements`.
 - Latest login fix commit: `925603c Fix local login CORS origins`.
 - Latest alignment commit: `Align time-off enhancements with Phase 2B.1 scope`.
 - Latest Phase 2B.2 work: `Implement Phase 2B.2 manager hierarchy and team management`.
-- Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature/leave-enhancements`
+- Latest Phase 2C work: `Implement Phase 2C global search and productivity layer`.
+- Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature/global-search`
 
 The repository now contains:
 
@@ -295,6 +296,82 @@ Planned implementation checkpoints:
 
 - Phase 2B.2 is ready for review.
 
+## Implemented Phase 2C Global Search & Productivity Layer
+
+Implemented and validated.
+
+Completed checkpoints:
+
+- Switched to the existing `feature/global-search` branch.
+- Fast-forwarded `feature/global-search` to include the completed Phase 2B.1 and Phase 2B.2 commits before starting new work.
+- Inspected the existing SearchIndexer, `search_index` schema, permission constants, seed permissions, and topbar search UI.
+- Added Phase 2C database layer:
+  - `saved_filters`
+  - `recent_searches`
+  - Prisma Company/User relations
+  - shared `SavedFilterDraft` and `RecentSearchDraft` types
+- Added migration `20260701130000_phase_2c_global_search`.
+- Added saved-filter permissions:
+  - `saved_filters:read`
+  - `saved_filters:write`
+- Updated API constants, shared config constants, seed permission rows, and role matrices for saved filters.
+- Added unified search API layer:
+  - `GET /api/v1/search`
+  - `GET /api/v1/search/recent`
+  - `SearchService`
+  - weighted ranking logic
+  - tenant isolation
+  - entity-level permission filtering
+  - recent-search persistence with a 20-item per-user limit
+- Added saved filter API layer:
+  - `GET /api/v1/saved-filters`
+  - `POST /api/v1/saved-filters`
+  - `PATCH /api/v1/saved-filters/:id`
+  - `DELETE /api/v1/saved-filters/:id`
+  - `SavedFiltersService`
+- Wired SearchController, SavedFiltersController, SearchService, and SavedFiltersService into the existing SearchModule without replacing SearchIndexer.
+- Improved search index coverage:
+  - task indexes now include recent comments and attachment metadata
+  - leave request indexes now include recent comments and attachment metadata
+  - user creation indexes name, email, job title, department, and manager metadata
+  - department creation indexes name, code, description, and manager metadata
+  - seed data now backfills user, department, and leave request search indexes
+  - seeded task indexes now include assignee and department metadata
+- Added frontend global command palette:
+  - topbar search button opens the modal
+  - Ctrl/Cmd+K opens the modal
+  - instant API-backed search
+  - entity type filters
+  - grouped results
+  - keyboard navigation
+  - recent searches
+  - saved filters
+  - built-in task and leave presets
+  - loading, empty, and error states
+  - responsive modal layout with Arabic RTL and English LTR support
+- Added frontend search API service for search, recent searches, and saved filters.
+- Updated Task List and Leave Requests pages to initialize filters from URL query parameters so presets and saved filters navigate into filtered views.
+- Added `test:global-search` regression coverage for:
+  - tenant isolation
+  - entity-level permission filtering
+  - ranking
+  - saved filters
+  - recent searches
+  - command-palette API usage
+- Registered `test:global-search` in the API package and root package scripts.
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `prisma migrate deploy` applied `20260701130000_phase_2c_global_search` successfully against the local PostgreSQL database.
+  - `corepack pnpm db:seed` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `corepack pnpm test:tenant-isolation` passed.
+  - `corepack pnpm test:global-search` passed after rerunning outside the sandbox due to the known `tsx` IPC pipe restriction.
+
+Planned implementation checkpoints:
+
+- Phase 2C is ready for review.
+
 ## Recent Fixes
 
 - Added locale root redirects:
@@ -414,3 +491,4 @@ Recent completed commits:
 - `925603c Fix local login CORS origins`
 - `Align time-off enhancements with Phase 2B.1 scope`
 - `Implement Phase 2B.2 manager hierarchy and team management`
+- `Implement Phase 2C global search and productivity layer`

@@ -21,6 +21,8 @@ export const PERMISSIONS = {
   smtpSettingsRead: "smtp_settings:read",
   smtpSettingsWrite: "smtp_settings:write",
   searchRead: "search:read",
+  savedFiltersRead: "saved_filters:read",
+  savedFiltersWrite: "saved_filters:write",
   workflowsRead: "approval_workflows:read",
   workflowsWrite: "approval_workflows:write",
   tagsRead: "tags:read",

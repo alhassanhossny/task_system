@@ -125,6 +125,20 @@ export interface SearchIndexDraft {
   content: string;
 }
 
+export interface SavedFilterDraft {
+  companyId: string;
+  userId: string;
+  entityType: EntityType;
+  name: string;
+  filterJson: Record<string, unknown>;
+}
+
+export interface RecentSearchDraft {
+  companyId: string;
+  userId: string;
+  query: string;
+}
+
 export interface ApprovalWorkflowDraft {
   companyId: string;
   entityType: EntityType;

@@ -3,13 +3,15 @@ import { EntityType, Locale, UserStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { DomainEventBus } from "../domain-events/domain-event-bus.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { SearchIndexer } from "../search/search-indexer.service";
 import { CreateUserDto } from "./dto/create-user.dto";
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly eventBus: DomainEventBus
+    private readonly eventBus: DomainEventBus,
+    private readonly searchIndexer: SearchIndexer
   ) {}
 
   findAll(companyId: string) {
@@ -91,7 +93,33 @@ export class UsersService {
       });
     }
 
+    await this.indexUser(companyId, user.id);
+
     return user;
+  }
+
+  private async indexUser(companyId: string, userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { companyId, id: userId, deletedAt: null },
+      include: {
+        department: { select: { name: true, code: true } },
+        manager: { select: { name: true, email: true } }
+      }
+    });
+
+    if (!user) {
+      return;
+    }
+
+    await this.searchIndexer.index({
+      companyId,
+      entityType: EntityType.USER,
+      entityId: user.id,
+      title: user.name,
+      content: [user.name, user.email, user.jobTitle, user.department?.name, user.department?.code, user.manager?.name, user.manager?.email]
+        .filter(Boolean)
+        .join("\n")
+    });
   }
 
   private async validateDepartment(companyId: string, departmentId?: string) {

@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar, CalendarDays, Check, Clock, HelpCircle, Hourglass, Plus, Search, Settings, Users, X } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useAuth } from "@/features/auth/auth-store";
@@ -51,6 +52,7 @@ export function LeavesView() {
   const { t, lang } = useUiText();
   const { accessToken, user } = useAuth();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const context = useMemo(() => (accessToken && user ? { token: accessToken, companyId: user.companyId } : null), [accessToken, user]);
   const [filters, setFilters] = useState<LeaveFilters>({});
   const [formOpen, setFormOpen] = useState(false);
@@ -61,6 +63,18 @@ export function LeavesView() {
     const today = new Date();
     setAvailabilityDate(toDateInput(today));
   }, []);
+
+  useEffect(() => {
+    setFilters({
+      status: (searchParams.get("status") as LeaveStatus | null) ?? undefined,
+      employeeId: searchParams.get("employeeId") ?? undefined,
+      leaveTypeId: searchParams.get("leaveTypeId") ?? undefined,
+      departmentId: searchParams.get("departmentId") ?? undefined,
+      startsFrom: searchParams.get("startsFrom") ?? undefined,
+      startsTo: searchParams.get("startsTo") ?? undefined,
+      search: searchParams.get("search") ?? undefined
+    });
+  }, [searchParams]);
 
   const balanceYear = availabilityDate ? Number(availabilityDate.slice(0, 4)) : null;
   const calendarRange = useMemo(

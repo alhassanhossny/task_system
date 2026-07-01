@@ -15,6 +15,7 @@
     "test:calendar": "tsx src/leave-requests/tests/leave-calendar.test.ts",
     "test:permissions": "tsx src/leave-requests/tests/leave-permissions.test.ts",
     "test:team-management": "tsx src/team/tests/team-management.test.ts",
+    "test:global-search": "tsx src/search/tests/global-search.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
     "format": "prettier --write \"src/**/*.ts\" \"../../prisma/**/*.ts\"",

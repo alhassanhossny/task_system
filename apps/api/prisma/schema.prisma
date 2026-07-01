@@ -202,6 +202,8 @@ model Company {
   comments        Comment[]
   notifications   Notification[]
   searchIndexes   SearchIndex[]
+  savedFilters    SavedFilter[]
+  recentSearches  RecentSearch[]
   smtpSetting     SmtpSetting?
   approvalWorkflows ApprovalWorkflow[]
   approvalSteps   ApprovalStep[]
@@ -252,6 +254,8 @@ model User {
   createdTags        Tag[]          @relation("TagCreator")
   createdEntityTags  EntityTag[]    @relation("EntityTagCreator")
   preference         UserPreference?
+  savedFilters       SavedFilter[]
+  recentSearches     RecentSearch[]
 
   @@unique([companyId, email])
   @@index([companyId])
@@ -698,6 +702,44 @@ model SearchIndex {
   @@unique([companyId, entityType, entityId])
   @@index([companyId, title])
   @@map("search_index")
+}
+
+model SavedFilter {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId  String     @map("company_id") @db.Uuid
+  userId     String     @map("user_id") @db.Uuid
+  entityType EntityType @map("entity_type")
+  name       String
+  filterJson Json       @map("filter_json")
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt  DateTime?  @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId, entityType, name])
+  @@index([companyId, userId, entityType])
+  @@index([userId])
+  @@map("saved_filters")
+}
+
+model RecentSearch {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String    @map("company_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  query     String
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId, query])
+  @@index([companyId, userId, createdAt])
+  @@index([userId])
+  @@map("recent_searches")
 }
 
 model SmtpSetting {

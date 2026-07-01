@@ -50,6 +50,8 @@ const permissionSeeds = [
   ["read", "smtp_settings", "Read SMTP settings"],
   ["write", "smtp_settings", "Create and update SMTP settings"],
   ["read", "search", "Use global search"],
+  ["read", "saved_filters", "Read saved filters"],
+  ["write", "saved_filters", "Create and update saved filters"],
   ["read", "approval_workflows", "Read approval workflows"],
   ["write", "approval_workflows", "Create and update approval workflows"],
   ["read", "tags", "Read tags"],
@@ -110,6 +112,8 @@ const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
     "notifications:read",
     "notifications:write",
     "search:read",
+    "saved_filters:read",
+    "saved_filters:write",
     "approval_workflows:read",
     "tags:read",
     "tags:write",
@@ -149,6 +153,8 @@ const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
     "notifications:read",
     "notifications:write",
     "search:read",
+    "saved_filters:read",
+    "saved_filters:write",
     "tags:read",
     "user_preferences:read",
     "user_preferences:write",
@@ -333,7 +339,7 @@ async function seedTask(input: {
     },
     update: {
       title: `${task.taskNumber} ${task.title}`,
-      content: [task.taskNumber, task.title, task.description].filter(Boolean).join("\n"),
+      content: await taskSearchContent(input.companyId, task.id),
       deletedAt: null
     },
     create: {
@@ -341,11 +347,33 @@ async function seedTask(input: {
       entityType: EntityType.TASK,
       entityId: task.id,
       title: `${task.taskNumber} ${task.title}`,
-      content: [task.taskNumber, task.title, task.description].filter(Boolean).join("\n")
+      content: await taskSearchContent(input.companyId, task.id)
     }
   });
 
   return task;
+}
+
+async function taskSearchContent(companyId: string, taskId: string) {
+  const task = await prisma.task.findFirstOrThrow({
+    where: { companyId, id: taskId },
+    include: {
+      department: { select: { name: true, code: true } },
+      assignees: { where: { deletedAt: null }, include: { user: { select: { name: true, email: true } } } }
+    }
+  });
+
+  return [
+    task.taskNumber,
+    task.title,
+    task.description,
+    task.department?.name,
+    task.department?.code,
+    ...task.assignees.map((assignee) => assignee.user.name),
+    ...task.assignees.map((assignee) => assignee.user.email)
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 async function seedLeaveType(companyId: string, input: { name: string; code: string; description?: string; isPaid?: boolean; annualAllowanceDays?: number }) {
@@ -447,6 +475,122 @@ async function seedLeaveBalance(input: {
       remainingDays: input.allocatedDays - input.usedDays
     }
   });
+}
+
+async function seedUserSearchIndexes(companyId: string) {
+  const users = await prisma.user.findMany({
+    where: { companyId, deletedAt: null },
+    include: {
+      department: { select: { name: true, code: true } },
+      manager: { select: { name: true, email: true } }
+    }
+  });
+
+  for (const user of users) {
+    await prisma.searchIndex.upsert({
+      where: { companyId_entityType_entityId: { companyId, entityType: EntityType.USER, entityId: user.id } },
+      update: {
+        title: user.name,
+        content: [user.name, user.email, user.jobTitle, user.department?.name, user.department?.code, user.manager?.name, user.manager?.email]
+          .filter(Boolean)
+          .join("\n"),
+        deletedAt: null
+      },
+      create: {
+        companyId,
+        entityType: EntityType.USER,
+        entityId: user.id,
+        title: user.name,
+        content: [user.name, user.email, user.jobTitle, user.department?.name, user.department?.code, user.manager?.name, user.manager?.email]
+          .filter(Boolean)
+          .join("\n")
+      }
+    });
+  }
+}
+
+async function seedDepartmentSearchIndexes(companyId: string) {
+  const departments = await prisma.department.findMany({
+    where: { companyId, deletedAt: null },
+    include: {
+      manager: { select: { name: true, email: true } }
+    }
+  });
+
+  for (const department of departments) {
+    await prisma.searchIndex.upsert({
+      where: { companyId_entityType_entityId: { companyId, entityType: EntityType.DEPARTMENT, entityId: department.id } },
+      update: {
+        title: department.name,
+        content: [department.name, department.code, department.description, department.manager?.name, department.manager?.email].filter(Boolean).join("\n"),
+        deletedAt: null
+      },
+      create: {
+        companyId,
+        entityType: EntityType.DEPARTMENT,
+        entityId: department.id,
+        title: department.name,
+        content: [department.name, department.code, department.description, department.manager?.name, department.manager?.email].filter(Boolean).join("\n")
+      }
+    });
+  }
+}
+
+async function seedLeaveSearchIndexes(companyId: string) {
+  const leaves = await prisma.leaveRequest.findMany({
+    where: { companyId, deletedAt: null },
+    include: {
+      employee: { select: { name: true, email: true, manager: { select: { name: true, email: true } } } },
+      department: { select: { name: true, code: true } },
+      leaveTypeRef: { select: { code: true } }
+    }
+  });
+
+  for (const leave of leaves) {
+    await prisma.searchIndex.upsert({
+      where: { companyId_entityType_entityId: { companyId, entityType: EntityType.LEAVE_REQUEST, entityId: leave.id } },
+      update: {
+        title: `${leave.requestNumber ?? ""} ${leave.employee.name} ${leave.leaveType}`.trim(),
+        content: [
+          leave.requestNumber,
+          leave.employee.name,
+          leave.employee.email,
+          leave.employee.manager?.name,
+          leave.employee.manager?.email,
+          leave.leaveType,
+          leave.leaveTypeRef?.code,
+          leave.department?.name,
+          leave.department?.code,
+          leave.status,
+          leave.reason
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        deletedAt: null
+      },
+      create: {
+        companyId,
+        entityType: EntityType.LEAVE_REQUEST,
+        entityId: leave.id,
+        title: `${leave.requestNumber ?? ""} ${leave.employee.name} ${leave.leaveType}`.trim(),
+        content: [
+          leave.requestNumber,
+          leave.employee.name,
+          leave.employee.email,
+          leave.employee.manager?.name,
+          leave.employee.manager?.email,
+          leave.leaveType,
+          leave.leaveTypeRef?.code,
+          leave.department?.name,
+          leave.department?.code,
+          leave.status,
+          leave.reason
+        ]
+          .filter(Boolean)
+          .join("\n")
+      }
+    });
+  }
 }
 
 async function main() {
@@ -799,6 +943,10 @@ async function main() {
       });
     }
   }
+
+  await seedUserSearchIndexes(ids.advancedTech);
+  await seedDepartmentSearchIndexes(ids.advancedTech);
+  await seedLeaveSearchIndexes(ids.advancedTech);
 
   await prisma.auditLog.create({
     data: {

@@ -100,6 +100,21 @@ export class LeaveEventsHandler implements OnModuleInit, OnModuleDestroy {
     if (event.name === "LEAVE_CANCELLED") {
       await this.searchIndexer.remove(event.companyId, EntityType.LEAVE_REQUEST, event.entityId);
     } else {
+      const [comments, attachments] = await Promise.all([
+        this.prisma.comment.findMany({
+          where: { companyId: event.companyId, entityType: EntityType.LEAVE_REQUEST, entityId: leave.id, deletedAt: null },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+          select: { content: true }
+        }),
+        this.prisma.attachment.findMany({
+          where: { companyId: event.companyId, entityType: EntityType.LEAVE_REQUEST, entityId: leave.id, deletedAt: null },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+          select: { fileName: true, mimeType: true, filePath: true }
+        })
+      ]);
+
       await this.searchIndexer.index({
         companyId: event.companyId,
         entityType: EntityType.LEAVE_REQUEST,
@@ -113,7 +128,9 @@ export class LeaveEventsHandler implements OnModuleInit, OnModuleDestroy {
           leave.leaveTypeRef?.code,
           leave.department?.name,
           leave.department?.code,
-          leave.reason
+          leave.reason,
+          ...comments.map((comment) => comment.content),
+          ...attachments.flatMap((attachment) => [attachment.fileName, attachment.mimeType, attachment.filePath])
         ]
           .filter(Boolean)
           .join("\n")
