@@ -11,6 +11,7 @@ Current Git state:
 - Branch: `feature/leave-enhancements`
 - Base branch `main` includes merged Phase 2B through `f902ce7 Update Phase 2B progress summary`.
 - Latest implementation commit: `Implement Phase 2B.1 leave enhancements`.
+- Latest login fix commit: `925603c Fix local login CORS origins`.
 - Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature/leave-enhancements`
 
 The repository now contains:
@@ -207,6 +208,12 @@ The repository now contains:
 - Implemented Phase 2A Task Core backend and frontend.
 - Implemented Phase 2B Leave Requests Core backend and frontend.
 - Implemented Phase 2B.1 Leave Enhancements for balances, workflow settings, request-info, calendar, and availability.
+- Fixed browser login `Failed to fetch` caused by CORS origin mismatch when opening the app with `127.0.0.1` instead of `localhost`.
+- Updated API CORS to accept comma-separated `WEB_ORIGIN` values and added local defaults for:
+  - `http://localhost:3000`
+  - `http://127.0.0.1:3000`
+  - `http://0.0.0.0:3000`
+- Added `WEB_ORIGIN` to `.env.example` and Docker API environment configuration.
 
 ## Local Testing
 
@@ -243,6 +250,10 @@ corepack pnpm test:leave-enhancements
 Additional local smoke checks completed:
 
 - Authenticated seed admin login against `http://localhost:4000/api/v1/auth/login`.
+- CORS preflight for `POST /api/v1/auth/login` returns matching `Access-Control-Allow-Origin` for:
+  - `http://localhost:3000`
+  - `http://127.0.0.1:3000`
+- Login POST from both local web origins returns HTTP `201 Created`.
 - Authenticated `GET /api/v1/tasks`, returning 3 seeded tenant tasks.
 - Authenticated `GET /api/v1/leave-types`, returning 7 seeded leave types.
 - Authenticated `GET /api/v1/leave-requests`, returning seeded pending and approved leave requests.
@@ -290,3 +301,4 @@ Recent completed commits:
 - `f351a40 Implement Phase 2A task core`
 - `c811b71 Implement Phase 2B leave requests`
 - `Implement Phase 2B.1 leave enhancements`
+- `925603c Fix local login CORS origins`
