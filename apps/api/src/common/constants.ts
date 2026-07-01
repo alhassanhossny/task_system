@@ -56,6 +56,11 @@ export const PERMISSIONS = {
   leaveSettingsRead: "leave_settings:read",
   leaveSettingsWrite: "leave_settings:write",
   emailsRead: "emails:read",
+  emailsCreate: "emails:create",
+  emailsUpdate: "emails:update",
+  emailsDelete: "emails:delete",
   emailsSend: "emails:send",
+  emailTemplatesRead: "email_templates:read",
+  emailTemplatesWrite: "email_templates:write",
   emailTemplatesManage: "email_templates:manage"
 } as const;

@@ -6,6 +6,9 @@ export type LeaveRequestType = "LEAVE" | "PERMISSION";
 export type LeaveHalfDayPeriod = "MORNING" | "AFTERNOON";
 export type LeaveApprovalMode = "MANAGER_ONLY" | "MANAGER_HR";
 export type EmailDirection = "inbound" | "outbound";
+export type EmailStatus = "DRAFT" | "QUEUED" | "SENDING" | "SENT" | "FAILED" | "CANCELLED";
+export type EmailRecipientKind = "TO" | "CC" | "BCC";
+export type EmailRecipientType = "EMPLOYEE" | "CLIENT" | "EXTERNAL";
 export type EntityType = "TASK" | "EMAIL" | "LEAVE_REQUEST" | "EMPLOYEE" | "USER" | "DEPARTMENT" | "COMPANY" | "CLIENT";
 export type NotificationType =
   | "TASK_ASSIGNED"
@@ -17,7 +20,9 @@ export type NotificationType =
   | "LEAVE_APPROVED"
   | "LEAVE_REJECTED"
   | "LEAVE_CANCELLED"
+  | "EMAIL_QUEUED"
   | "EMAIL_SENT"
+  | "EMAIL_FAILED"
   | "SYSTEM";
 export type SmtpEncryption = "NONE" | "STARTTLS" | "SSL_TLS";
 export type ApprovalActionStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
@@ -75,6 +80,34 @@ export interface EmailMessageDraft {
   fromAddress: string;
   toAddresses: string[];
   readAt?: string | null;
+}
+
+export interface EmailDraft {
+  companyId: string;
+  createdById?: string | null;
+  templateId?: string | null;
+  subject: string;
+  body: string;
+  status: EmailStatus;
+  replyTo?: string | null;
+}
+
+export interface EmailRecipientDraft {
+  companyId: string;
+  emailId: string;
+  userId?: string | null;
+  recipientType: EmailRecipientType;
+  recipientKind: EmailRecipientKind;
+  email: string;
+  name?: string | null;
+}
+
+export interface EmailTemplateDraft {
+  companyId: string;
+  name: string;
+  subject: string;
+  body: string;
+  isSystem: boolean;
 }
 
 export interface AttachmentDraft {

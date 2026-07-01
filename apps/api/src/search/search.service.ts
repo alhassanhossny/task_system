@@ -5,7 +5,7 @@ import { RequestUser } from "../common/types/request-user";
 import { PrismaService } from "../prisma/prisma.service";
 import { SearchQueryDto, SearchType } from "./dto/search-query.dto";
 
-const SEARCHABLE_TYPES = [EntityType.TASK, EntityType.USER, EntityType.LEAVE_REQUEST, EntityType.DEPARTMENT] as const;
+const SEARCHABLE_TYPES = [EntityType.TASK, EntityType.USER, EntityType.LEAVE_REQUEST, EntityType.DEPARTMENT, EntityType.EMAIL] as const;
 type SearchableEntityType = (typeof SEARCHABLE_TYPES)[number];
 
 interface SearchMetadata {
@@ -223,6 +223,18 @@ export class SearchService {
       return rows.map((row) => row.id);
     }
 
+    if (type === EntityType.EMAIL) {
+      const rows = await this.prisma.email.findMany({
+        where: {
+          companyId,
+          id: { in: ids },
+          deletedAt: null
+        },
+        select: { id: true }
+      });
+      return rows.map((row) => row.id);
+    }
+
     const rows = await this.prisma.department.findMany({
       where: { companyId, id: { in: ids }, deletedAt: null },
       select: { id: true }
@@ -241,6 +253,10 @@ export class SearchService {
 
     if (type === EntityType.LEAVE_REQUEST) {
       return user.permissions.includes(PERMISSIONS.leaveRequestsRead) || user.permissions.includes(PERMISSIONS.leaveRequestsViewTeam);
+    }
+
+    if (type === EntityType.EMAIL) {
+      return user.permissions.includes(PERMISSIONS.emailsRead);
     }
 
     return user.permissions.includes(PERMISSIONS.departmentsRead);
@@ -278,7 +294,8 @@ export class SearchService {
       this.taskMetadata(companyId, idsByType.get(EntityType.TASK) ?? [], map),
       this.userMetadata(companyId, idsByType.get(EntityType.USER) ?? [], map),
       this.leaveMetadata(companyId, idsByType.get(EntityType.LEAVE_REQUEST) ?? [], map),
-      this.departmentMetadata(companyId, idsByType.get(EntityType.DEPARTMENT) ?? [], map)
+      this.departmentMetadata(companyId, idsByType.get(EntityType.DEPARTMENT) ?? [], map),
+      this.emailMetadata(companyId, idsByType.get(EntityType.EMAIL) ?? [], map)
     ]);
 
     return map;
@@ -360,13 +377,33 @@ export class SearchService {
     }
   }
 
+  private async emailMetadata(companyId: string, ids: string[], map: Map<string, SearchMetadata>) {
+    if (!ids.length) return;
+
+    const emails = await this.prisma.email.findMany({
+      where: { companyId, id: { in: ids }, deletedAt: null },
+      include: {
+        createdBy: { select: { name: true } },
+        recipients: { where: { deletedAt: null }, take: 4 }
+      }
+    });
+
+    for (const email of emails) {
+      map.set(this.key(EntityType.EMAIL, email.id), {
+        subtitle: [email.status, email.createdBy?.name, email.recipients.map((recipient) => recipient.email).join(", ")].filter(Boolean).join(" · "),
+        url: `/email?emailId=${email.id}`
+      });
+    }
+  }
+
   private fallbackMetadata(type: SearchableEntityType, id: string, content: string): SearchMetadata {
     const firstLine = content.split(/\r?\n/).find(Boolean) ?? type;
     const urls: Record<SearchableEntityType, string> = {
       [EntityType.TASK]: `/tasks/list?taskId=${id}`,
       [EntityType.USER]: `/employees?userId=${id}`,
       [EntityType.LEAVE_REQUEST]: `/leaves?requestId=${id}`,
-      [EntityType.DEPARTMENT]: `/employees?departmentId=${id}`
+      [EntityType.DEPARTMENT]: `/employees?departmentId=${id}`,
+      [EntityType.EMAIL]: `/email?emailId=${id}`
     };
 
     return { subtitle: firstLine, url: urls[type] };

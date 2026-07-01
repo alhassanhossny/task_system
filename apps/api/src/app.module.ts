@@ -14,6 +14,7 @@ import { CompaniesModule } from "./companies/companies.module";
 import { DepartmentsModule } from "./departments/departments.module";
 import { DomainEventsModule } from "./domain-events/domain-events.module";
 import { EmailProvidersModule } from "./email-providers/email-providers.module";
+import { EmailsModule } from "./emails/emails.module";
 import { HealthModule } from "./health/health.module";
 import { LeaveRequestsModule } from "./leave-requests/leave-requests.module";
 import { NotificationsModule } from "./notifications/notifications.module";
@@ -45,6 +46,7 @@ import { UsersModule } from "./users/users.module";
     SmtpSettingsModule,
     QueuesModule,
     EmailProvidersModule,
+    EmailsModule,
     SearchModule,
     TasksModule,
     LeaveRequestsModule,

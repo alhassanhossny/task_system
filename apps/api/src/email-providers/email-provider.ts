@@ -1,16 +1,28 @@
 export const EMAIL_PROVIDER = Symbol("EMAIL_PROVIDER");
 
-export interface EmailAddress {
+export interface EmailProviderAddress {
   email: string;
   name?: string;
 }
 
+export interface EmailProviderAttachment {
+  fileName: string;
+  filePath: string;
+  mimeType: string;
+  fileSize: number;
+}
+
 export interface EmailProviderMessage {
-  from: EmailAddress;
-  to: EmailAddress[];
+  companyId: string;
+  from: EmailProviderAddress;
+  replyTo?: EmailProviderAddress;
+  to: EmailProviderAddress[];
+  cc?: EmailProviderAddress[];
+  bcc?: EmailProviderAddress[];
   subject: string;
   html?: string;
   text?: string;
+  attachments?: EmailProviderAttachment[];
 }
 
 export interface EmailProviderResult {

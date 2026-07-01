@@ -116,6 +116,33 @@ enum EmailDirection {
   @@map("email_direction")
 }
 
+enum EmailStatus {
+  DRAFT     @map("draft")
+  QUEUED    @map("queued")
+  SENDING   @map("sending")
+  SENT      @map("sent")
+  FAILED    @map("failed")
+  CANCELLED @map("cancelled")
+
+  @@map("email_status")
+}
+
+enum EmailRecipientKind {
+  TO  @map("to")
+  CC  @map("cc")
+  BCC @map("bcc")
+
+  @@map("email_recipient_kind")
+}
+
+enum EmailRecipientType {
+  EMPLOYEE @map("employee")
+  CLIENT   @map("client")
+  EXTERNAL @map("external")
+
+  @@map("email_recipient_type")
+}
+
 enum EntityType {
   TASK
   EMAIL
@@ -139,7 +166,9 @@ enum NotificationType {
   LEAVE_APPROVED
   LEAVE_REJECTED
   LEAVE_CANCELLED
+  EMAIL_QUEUED
   EMAIL_SENT
+  EMAIL_FAILED
   SYSTEM
 
   @@map("notification_type")
@@ -197,6 +226,10 @@ model Company {
   leaveRequests   LeaveRequest[]
   leaveBalances   LeaveBalance[]
   leaveSetting    LeaveSetting?
+  emails          Email[]
+  emailRecipients EmailRecipient[]
+  emailTemplates  EmailTemplate[]
+  emailAttachments EmailAttachment[]
   emailMessages   EmailMessage[]
   attachments     Attachment[]
   comments        Comment[]
@@ -245,6 +278,9 @@ model User {
   watchedTasks       TaskWatcher[]
   leaveRequests      LeaveRequest[]
   leaveBalances      LeaveBalance[]
+  createdEmails      Email[]       @relation("EmailCreator")
+  emailRecipients    EmailRecipient[] @relation("EmailRecipientUser")
+  createdEmailTemplates EmailTemplate[] @relation("EmailTemplateCreator")
   sentEmails         EmailMessage[] @relation("EmailSender")
   uploadedAttachments Attachment[]  @relation("AttachmentUploader")
   comments           Comment[]      @relation("CommentAuthor")
@@ -622,6 +658,106 @@ model EmailMessage {
   @@map("email_messages")
 }
 
+model Email {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId         String      @map("company_id") @db.Uuid
+  createdById       String?     @map("created_by_id") @db.Uuid
+  templateId        String?     @map("template_id") @db.Uuid
+  subject           String
+  body              String      @db.Text
+  status            EmailStatus @default(DRAFT)
+  fromName          String?     @map("from_name")
+  fromEmail         String?     @map("from_email")
+  replyTo           String?     @map("reply_to")
+  queuedAt          DateTime?   @map("queued_at") @db.Timestamptz(6)
+  sentAt            DateTime?   @map("sent_at") @db.Timestamptz(6)
+  failedAt          DateTime?   @map("failed_at") @db.Timestamptz(6)
+  cancelledAt       DateTime?   @map("cancelled_at") @db.Timestamptz(6)
+  failureReason     String?     @map("failure_reason") @db.Text
+  provider          String?
+  providerMessageId String?     @map("provider_message_id")
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?   @map("deleted_at") @db.Timestamptz(6)
+
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy   User?            @relation("EmailCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  template    EmailTemplate?   @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  recipients  EmailRecipient[]
+  attachments EmailAttachment[]
+
+  @@index([companyId, status, createdAt])
+  @@index([companyId, createdAt])
+  @@index([createdById])
+  @@index([templateId])
+  @@map("emails")
+}
+
+model EmailRecipient {
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId     String             @map("company_id") @db.Uuid
+  emailId       String             @map("email_id") @db.Uuid
+  userId        String?            @map("user_id") @db.Uuid
+  recipientType EmailRecipientType @default(EXTERNAL) @map("recipient_type")
+  recipientKind EmailRecipientKind @map("recipient_kind")
+  email         String
+  name          String?
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?          @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  message Email   @relation(fields: [emailId], references: [id], onDelete: Cascade)
+  user    User?   @relation("EmailRecipientUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, emailId, recipientKind, email])
+  @@index([companyId, emailId])
+  @@index([companyId, email])
+  @@index([userId])
+  @@map("email_recipients")
+}
+
+model EmailTemplate {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  createdById String?   @map("created_by_id") @db.Uuid
+  name        String
+  subject     String
+  body        String    @db.Text
+  isSystem    Boolean   @default(false) @map("is_system")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy User?   @relation("EmailTemplateCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  emails    Email[]
+
+  @@unique([companyId, name])
+  @@index([companyId, isSystem])
+  @@index([createdById])
+  @@map("email_templates")
+}
+
+model EmailAttachment {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  emailId      String    @map("email_id") @db.Uuid
+  attachmentId String    @map("attachment_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  email      Email      @relation(fields: [emailId], references: [id], onDelete: Cascade)
+  attachment Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, emailId, attachmentId])
+  @@index([companyId, emailId])
+  @@index([attachmentId])
+  @@map("email_attachments")
+}
+
 model Attachment {
   id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   companyId    String     @map("company_id") @db.Uuid
@@ -638,6 +774,7 @@ model Attachment {
 
   company    Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   uploadedBy User?   @relation("AttachmentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  emailLinks  EmailAttachment[]
 
   @@index([companyId, entityType, entityId])
   @@index([uploadedById])

@@ -1,4 +1,4 @@
-import { EmailDirection, PrismaClient, UserStatus } from "@prisma/client";
+import { EmailRecipientKind, PrismaClient, UserStatus } from "@prisma/client";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
@@ -61,26 +61,34 @@ async function main() {
     ]);
 
     const [emailA, emailB] = await Promise.all([
-      prisma.emailMessage.create({
+      prisma.email.create({
         data: {
           companyId: companyA.id,
-          senderId: userA.id,
-          direction: EmailDirection.OUTBOUND,
+          createdById: userA.id,
           subject: "Tenant A Email",
           body: "Tenant A body",
-          fromAddress: "tenant-a@example.com",
-          toAddresses: ["recipient@example.com"]
+          recipients: {
+            create: {
+              companyId: companyA.id,
+              recipientKind: EmailRecipientKind.TO,
+              email: "recipient@example.com"
+            }
+          }
         }
       }),
-      prisma.emailMessage.create({
+      prisma.email.create({
         data: {
           companyId: companyB.id,
-          senderId: userB.id,
-          direction: EmailDirection.OUTBOUND,
+          createdById: userB.id,
           subject: "Tenant B Email",
           body: "Tenant B body",
-          fromAddress: "tenant-b@example.com",
-          toAddresses: ["recipient@example.com"]
+          recipients: {
+            create: {
+              companyId: companyB.id,
+              recipientKind: EmailRecipientKind.TO,
+              email: "recipient@example.com"
+            }
+          }
         }
       })
     ]);
@@ -113,11 +121,12 @@ async function canFindTask(companyId: string, id: string) {
 }
 
 async function canFindEmail(companyId: string, id: string) {
-  return Boolean(await prisma.emailMessage.findFirst({ where: { companyId, id, deletedAt: null }, select: { id: true } }));
+  return Boolean(await prisma.email.findFirst({ where: { companyId, id, deletedAt: null }, select: { id: true } }));
 }
 
 async function cleanup(...companyIds: string[]) {
-  await prisma.emailMessage.deleteMany({ where: { companyId: { in: companyIds } } });
+  await prisma.emailRecipient.deleteMany({ where: { companyId: { in: companyIds } } });
+  await prisma.email.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.taskWatcher.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.taskAssignee.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.task.deleteMany({ where: { companyId: { in: companyIds } } });

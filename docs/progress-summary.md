@@ -4,18 +4,19 @@ Last updated: 2026-07-01
 
 ## Current Status
 
-Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, Phase 2B Leave Requests Core, Phase 2B.1 Leave Enhancements, Phase 2B.2 Manager Hierarchy & Team Management, and Phase 2C Global Search & Productivity Layer are implemented.
+Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, Phase 2B Leave Requests Core, Phase 2B.1 Leave Enhancements, Phase 2B.2 Manager Hierarchy & Team Management, Phase 2C Global Search & Productivity Layer, and Phase 3 Email Center are implemented.
 
 Current Git state:
 
-- Branch: `feature/global-search`
+- Branch: `feature/email-center`
 - Base branch `main` includes merged Phase 2B through `f902ce7 Update Phase 2B progress summary`.
 - Latest implementation commit: `Implement Phase 2B.1 leave enhancements`.
 - Latest login fix commit: `925603c Fix local login CORS origins`.
 - Latest alignment commit: `Align time-off enhancements with Phase 2B.1 scope`.
 - Latest Phase 2B.2 work: `Implement Phase 2B.2 manager hierarchy and team management`.
 - Latest Phase 2C work: `Implement Phase 2C global search and productivity layer`.
-- Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature/global-search`
+- Latest Phase 3 work: `Implement Phase 3 email center`.
+- Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature/email-center`
 
 The repository now contains:
 
@@ -372,6 +373,104 @@ Planned implementation checkpoints:
 
 - Phase 2C is ready for review.
 
+## Implemented Phase 3 Email Center
+
+Implemented and validated.
+
+Completed checkpoints:
+
+- Created branch `feature/email-center` from the completed Phase 2C work.
+- Inspected existing SMTP settings, BullMQ queue wrappers, EmailProvider/SmtpProvider abstraction, DomainEventBus subscribers, attachments, search indexing, permissions, seed data, and the prototype Email UI.
+- Confirmed Phase 3 will extend the existing `EmailMessage` prototype into a tenant-scoped Email Center rather than creating a parallel system.
+- Added Phase 3 database layer:
+  - `emails`
+  - `email_recipients`
+  - `email_templates`
+  - `email_attachments`
+  - `EmailStatus`
+  - `EmailRecipientKind`
+  - `EmailRecipientType`
+- Added migration `20260701150000_phase_3_email_center`.
+- Added email permissions:
+  - `emails:read`
+  - `emails:create`
+  - `emails:update`
+  - `emails:delete`
+  - `emails:send`
+  - `email_templates:read`
+  - `email_templates:write`
+- Updated API constants, shared config constants, seed permission rows, role permission matrix, and seeded system templates.
+- Added backend Email Center module:
+  - `EmailsModule`
+  - `EmailsController`
+  - `EmailTemplatesController`
+  - `EmailsService`
+  - `EmailTemplatesService`
+  - `EmailWorker`
+  - `EmailEventsHandler`
+- Added queue-based email status flow:
+  - `DRAFT`
+  - `QUEUED`
+  - `SENDING`
+  - `SENT`
+  - `FAILED`
+  - `CANCELLED`
+- Implemented SMTP provider delivery through existing encrypted company SMTP settings, with test-only mock delivery mode.
+- Added Email domain events:
+  - `EMAIL_CREATED`
+  - `EMAIL_UPDATED`
+  - `EMAIL_QUEUED`
+  - `EMAIL_SENT`
+  - `EMAIL_FAILED`
+  - `EMAIL_CANCELLED`
+  - `EMAIL_RETRIED`
+  - `EMAIL_DELETED`
+  - `EMAIL_ATTACHMENT_ADDED`
+- Email event subscribers now create activities, audit logs, notifications, and search indexes.
+- Extended global search to include `EMAIL` results with `emails:read` permission filtering.
+- Backend validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `corepack pnpm typecheck` passed.
+- Replaced prototype Email UI with API-backed Email Center:
+  - `/email` status tabs for inbox, sent, drafts, queued, failed, and templates
+  - compose modal
+  - employee and external recipients
+  - TO / CC / BCC
+  - template selector
+  - attachment metadata
+  - queue send, retry, cancel, edit, and delete actions
+  - template creation and custom template deletion
+  - responsive Arabic RTL and English LTR layout
+- Extended command palette filters and result rendering to support `EMAIL`.
+- Frontend validation checkpoint:
+  - `corepack pnpm typecheck` passed.
+- Added `test:email-center` regression coverage for:
+  - email creation
+  - template rendering
+  - queue processing
+  - SMTP provider integration
+  - status transitions
+  - retries
+  - tenant isolation
+  - search indexing
+  - permission filtering
+- Updated tenant isolation regression coverage to use the new production `emails` table.
+- Final validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `prisma migrate deploy` applied `20260701150000_phase_3_email_center` successfully against the local PostgreSQL database.
+  - `corepack pnpm db:seed` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `corepack pnpm test:tenant-isolation` passed.
+  - `corepack pnpm test:email-center` passed after rerunning outside the sandbox due to the known `tsx` IPC pipe restriction.
+  - `corepack pnpm test:global-search` passed.
+
+Follow-up work:
+
+- Real binary file upload/streaming for email attachments once the StorageProvider grows read/write object methods.
+- Optional inbound mailbox ingestion if Inbox becomes a true received-mail workflow.
+- Super Admin SaaS portal should be the next major branch after review.
+
 ## Recent Fixes
 
 - Added locale root redirects:
@@ -407,6 +506,8 @@ Current development URLs:
 - Arabic Kanban: `http://localhost:3000/ar/tasks/kanban`
 - Arabic leave requests: `http://localhost:3000/ar/leaves`
 - English leave requests: `http://localhost:3000/en/leaves`
+- Arabic email center: `http://localhost:3000/ar/email`
+- English email center: `http://localhost:3000/en/email`
 - API docs: `http://localhost:4000/docs`
 - API base: `http://localhost:4000/api/v1`
 
@@ -429,6 +530,9 @@ corepack pnpm test:leave-enhancements
 corepack pnpm test:leave-balances
 corepack pnpm test:calendar
 corepack pnpm test:permissions
+corepack pnpm test:team-management
+corepack pnpm test:global-search
+corepack pnpm test:email-center
 ```
 
 Additional local smoke checks completed:
@@ -458,7 +562,7 @@ Additional local smoke checks completed:
 
 ## Remaining Work
 
-The following modules should be implemented after Phase 2B.1 approval:
+The following modules should be implemented after Phase 3 approval:
 
 - Task refinements:
   - richer multi-assignee editing
@@ -469,10 +573,11 @@ The following modules should be implemented after Phase 2B.1 approval:
   - richer workflow editor UI beyond the current Manager-only / Manager-HR selector
   - leave accrual policy automation
   - public holiday calendars
-- Email center backend implementation.
-- SMTP email worker and delivery status processing.
+- Email refinements:
+  - real binary file upload and attachment streaming through StorageProvider
+  - optional inbound mailbox ingestion if Inbox becomes a received-mail workflow
 - Real company switcher behavior for Super Admin users.
-- Real global search.
+- Super Admin SaaS portal for tenant management, usage metrics, platform settings, and company switching.
 
 ## Git Progress
 
@@ -492,3 +597,4 @@ Recent completed commits:
 - `Align time-off enhancements with Phase 2B.1 scope`
 - `Implement Phase 2B.2 manager hierarchy and team management`
 - `Implement Phase 2C global search and productivity layer`
+- `Implement Phase 3 email center`

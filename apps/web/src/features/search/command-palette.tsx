@@ -1,14 +1,14 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Building2, CalendarDays, Clock, FileText, Filter, Loader2, Search, User, X } from "lucide-react";
+import { Building2, CalendarDays, Clock, FileText, Filter, Loader2, Mail, Search, User, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/features/auth/auth-store";
 import type { Lang, UiText } from "@/features/prototype/types";
 import { searchService, type SavedFilter, type SearchEntityType, type SearchResult } from "./search-service";
 
-const SEARCH_TYPES: SearchEntityType[] = ["ALL", "TASK", "USER", "LEAVE_REQUEST", "DEPARTMENT"];
+const SEARCH_TYPES: SearchEntityType[] = ["ALL", "TASK", "USER", "LEAVE_REQUEST", "DEPARTMENT", "EMAIL"];
 
 export function CommandPalette({ open, onOpen, onClose, lang, t }: { open: boolean; onOpen: () => void; onClose: () => void; lang: Lang; t: UiText }) {
   const router = useRouter();
@@ -316,7 +316,8 @@ function iconFor(type: Exclude<SearchEntityType, "ALL">) {
     TASK: FileText,
     USER: User,
     LEAVE_REQUEST: CalendarDays,
-    DEPARTMENT: Building2
+    DEPARTMENT: Building2,
+    EMAIL: Mail
   };
 
   return icons[type];
@@ -328,7 +329,8 @@ function typeLabel(lang: Lang, type: SearchEntityType) {
     TASK: ["المهام", "Tasks"],
     USER: ["الموظفون", "Employees"],
     LEAVE_REQUEST: ["الإجازات", "Leave Requests"],
-    DEPARTMENT: ["الأقسام", "Departments"]
+    DEPARTMENT: ["الأقسام", "Departments"],
+    EMAIL: ["البريد", "Emails"]
   };
 
   return lang === "ar" ? labels[type][0] : labels[type][1];
@@ -348,6 +350,7 @@ function filterPath(filter: SavedFilter) {
   if (filter.entityType === "LEAVE_REQUEST") return `/leaves${suffix}`;
   if (filter.entityType === "USER") return `/employees${suffix}`;
   if (filter.entityType === "DEPARTMENT") return `/employees${suffix}`;
+  if (filter.entityType === "EMAIL") return `/email${suffix}`;
   return `/dashboard${suffix}`;
 }
 

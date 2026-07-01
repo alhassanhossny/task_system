@@ -2,7 +2,7 @@ import { ApiPropertyOptional } from "@nestjs/swagger";
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 import { Type } from "class-transformer";
 
-export const SEARCH_TYPES = ["ALL", "TASK", "USER", "LEAVE_REQUEST", "DEPARTMENT"] as const;
+export const SEARCH_TYPES = ["ALL", "TASK", "USER", "LEAVE_REQUEST", "DEPARTMENT", "EMAIL"] as const;
 export type SearchType = (typeof SEARCH_TYPES)[number];
 
 export class SearchQueryDto {

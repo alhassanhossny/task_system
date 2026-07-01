@@ -85,7 +85,12 @@ const permissionSeeds = [
   ["read", "leave_settings", "Read leave settings"],
   ["write", "leave_settings", "Create and update leave settings"],
   ["read", "emails", "Read emails"],
+  ["create", "emails", "Create email drafts"],
+  ["update", "emails", "Update email drafts"],
+  ["delete", "emails", "Delete emails"],
   ["send", "emails", "Send emails"],
+  ["read", "email_templates", "Read email templates"],
+  ["write", "email_templates", "Create and update email templates"],
   ["manage", "email_templates", "Manage email templates"]
 ] as const;
 
@@ -140,7 +145,12 @@ const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
     "leave_balances:write",
     "leave_settings:read",
     "emails:read",
-    "emails:send"
+    "emails:create",
+    "emails:update",
+    "emails:delete",
+    "emails:send",
+    "email_templates:read",
+    "email_templates:write"
   ],
   [SystemRole.EMPLOYEE]: [
     "users:read",
@@ -172,7 +182,10 @@ const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
     "leave_balances:read",
     "leave_settings:read",
     "emails:read",
-    "emails:send"
+    "emails:create",
+    "emails:update",
+    "emails:send",
+    "email_templates:read"
   ]
 };
 
@@ -593,6 +606,55 @@ async function seedLeaveSearchIndexes(companyId: string) {
   }
 }
 
+const emailTemplateSeeds = [
+  {
+    name: "Welcome User",
+    subject: "Welcome to {{company_name}}",
+    body: "Hello {{employee_name}},\n\nWelcome to {{company_name}}. Your account is ready."
+  },
+  {
+    name: "Task Assigned",
+    subject: "Task assigned: {{task_number}}",
+    body: "Hello {{employee_name}},\n\nYou have been assigned task {{task_number}}."
+  },
+  {
+    name: "Leave Approved",
+    subject: "Leave approved: {{leave_type}}",
+    body: "Hello {{employee_name}},\n\nYour {{leave_type}} request has been approved."
+  },
+  {
+    name: "Leave Rejected",
+    subject: "Leave request update: {{leave_type}}",
+    body: "Hello {{employee_name}},\n\nYour {{leave_type}} request was rejected."
+  },
+  {
+    name: "Password Reset",
+    subject: "Password reset request",
+    body: "Hello {{employee_name}},\n\nUse the secure password reset link from {{company_name}} to continue."
+  }
+] as const;
+
+async function seedEmailTemplates(companyId: string) {
+  for (const template of emailTemplateSeeds) {
+    await prisma.emailTemplate.upsert({
+      where: { companyId_name: { companyId, name: template.name } },
+      update: {
+        subject: template.subject,
+        body: template.body,
+        isSystem: true,
+        deletedAt: null
+      },
+      create: {
+        companyId,
+        name: template.name,
+        subject: template.subject,
+        body: template.body,
+        isSystem: true
+      }
+    });
+  }
+}
+
 async function main() {
   const passwordHash = await bcrypt.hash("Password123!", 10);
 
@@ -725,6 +787,7 @@ async function main() {
 
   for (const companyId of [ids.platformCompany, ids.advancedTech, ids.leadingGroup]) {
     await linkRolePermissions(companyId);
+    await seedEmailTemplates(companyId);
   }
 
   await seedTask({

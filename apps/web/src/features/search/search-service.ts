@@ -1,6 +1,6 @@
 import { apiFetch } from "@/lib/api/client";
 
-export type SearchEntityType = "ALL" | "TASK" | "USER" | "LEAVE_REQUEST" | "DEPARTMENT";
+export type SearchEntityType = "ALL" | "TASK" | "USER" | "LEAVE_REQUEST" | "DEPARTMENT" | "EMAIL";
 
 export interface SearchResult {
   id: string;
