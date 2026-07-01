@@ -18,6 +18,11 @@ export class LeaveQueryDto {
   @IsUUID()
   leaveTypeId?: string;
 
+  @ApiPropertyOptional({ format: "uuid" })
+  @IsOptional()
+  @IsUUID()
+  departmentId?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsDateString()

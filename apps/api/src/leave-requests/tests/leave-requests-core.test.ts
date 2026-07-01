@@ -138,6 +138,19 @@ async function main() {
     });
     assert.equal(attachment.filePath, "leave/handover.pdf");
 
+    const infoRequested = await leaveRequestsService.requestMoreInformation(company.id, manager.id, leave.id, { comment: "Please add handover notes." });
+    assert.equal(infoRequested.status, LeaveStatus.INFO_REQUESTED);
+
+    await waitFor(async () => {
+      const notification = await prisma.notification.findFirst({
+        where: { companyId: company.id, userId: employee.id, type: NotificationType.LEAVE_INFO_REQUESTED, entityId: leave.id }
+      });
+      return Boolean(notification);
+    });
+
+    const resubmitted = await leaveRequestsService.update(company.id, employee.id, leave.id, { reason: "Family travel with handover notes attached." });
+    assert.equal(resubmitted.status, LeaveStatus.PENDING);
+
     const afterManager = await leaveRequestsService.approve(company.id, manager.id, leave.id, { comment: "Approved by manager" });
     assert.equal(afterManager.status, LeaveStatus.PENDING);
 
@@ -151,6 +164,12 @@ async function main() {
     const approved = await leaveRequestsService.approve(company.id, admin.id, leave.id, { comment: "Approved by admin" });
     assert.equal(approved.status, LeaveStatus.APPROVED);
     assert.ok(approved.approvedAt);
+
+    const balance = await prisma.leaveBalance.findFirstOrThrow({
+      where: { companyId: company.id, employeeId: employee.id, leaveTypeId: leaveType.id, year: 2026 }
+    });
+    assert.equal(Number(balance.usedDays), 3);
+    assert.equal(Number(balance.remainingDays), 18);
 
     await waitFor(async () => {
       const notification = await prisma.notification.findFirst({
@@ -204,6 +223,8 @@ async function cleanup(companyId: string) {
   await prisma.approvalStep.deleteMany({ where: { companyId } });
   await prisma.approvalWorkflow.deleteMany({ where: { companyId } });
   await prisma.leaveRequest.deleteMany({ where: { companyId } });
+  await prisma.leaveBalance.deleteMany({ where: { companyId } });
+  await prisma.leaveSetting.deleteMany({ where: { companyId } });
   await prisma.leaveType.deleteMany({ where: { companyId } });
   await prisma.userRole.deleteMany({ where: { companyId } });
   await prisma.role.deleteMany({ where: { companyId } });

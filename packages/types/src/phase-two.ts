@@ -1,6 +1,9 @@
 export type TaskStatus = "NEW" | "ASSIGNED" | "IN_PROGRESS" | "PENDING" | "COMPLETED" | "CANCELLED";
 export type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-export type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+export type LeaveStatus = "PENDING" | "INFO_REQUESTED" | "APPROVED" | "REJECTED" | "CANCELLED";
+export type LeaveDurationType = "FULL_DAY" | "HALF_DAY" | "HOURS";
+export type LeaveHalfDayPeriod = "MORNING" | "AFTERNOON";
+export type LeaveApprovalMode = "MANAGER_ONLY" | "MANAGER_HR";
 export type EmailDirection = "inbound" | "outbound";
 export type EntityType = "TASK" | "EMAIL" | "LEAVE_REQUEST" | "EMPLOYEE" | "USER" | "DEPARTMENT" | "COMPANY" | "CLIENT";
 export type NotificationType =
@@ -9,6 +12,7 @@ export type NotificationType =
   | "TASK_DUE_SOON"
   | "TASK_OVERDUE"
   | "LEAVE_SUBMITTED"
+  | "LEAVE_INFO_REQUESTED"
   | "LEAVE_APPROVED"
   | "LEAVE_REJECTED"
   | "LEAVE_CANCELLED"
@@ -35,8 +39,27 @@ export interface LeaveRequestDraft {
   leaveTypeId: string;
   startsAt: string;
   endsAt: string;
+  durationType: LeaveDurationType;
+  durationDays: number;
+  durationHours?: number | null;
+  halfDayPeriod?: LeaveHalfDayPeriod | null;
   status: LeaveStatus;
   reason?: string | null;
+}
+
+export interface LeaveBalanceDraft {
+  companyId: string;
+  employeeId: string;
+  leaveTypeId: string;
+  allocatedDays: number;
+  usedDays: number;
+  remainingDays: number;
+  year: number;
+}
+
+export interface LeaveSettingDraft {
+  companyId: string;
+  approvalMode: LeaveApprovalMode;
 }
 
 export interface EmailMessageDraft {

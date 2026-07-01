@@ -1,4 +1,17 @@
-import { PrismaClient, CompanyPlan, CompanyStatus, EntityType, LeaveStatus, Locale, SystemRole, TaskPriority, TaskStatus, UserStatus } from "@prisma/client";
+import {
+  PrismaClient,
+  CompanyPlan,
+  CompanyStatus,
+  EntityType,
+  LeaveApprovalMode,
+  LeaveDurationType,
+  LeaveStatus,
+  Locale,
+  SystemRole,
+  TaskPriority,
+  TaskStatus,
+  UserStatus
+} from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -57,6 +70,10 @@ const permissionSeeds = [
   ["reject", "leave_requests", "Reject leave requests"],
   ["read", "leave_types", "Read leave types"],
   ["write", "leave_types", "Create and update leave types"],
+  ["read", "leave_balances", "Read leave balances"],
+  ["write", "leave_balances", "Create and update leave balances"],
+  ["read", "leave_settings", "Read leave settings"],
+  ["write", "leave_settings", "Create and update leave settings"],
   ["read", "emails", "Read emails"],
   ["send", "emails", "Send emails"],
   ["manage", "email_templates", "Manage email templates"]
@@ -102,6 +119,9 @@ const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
     "leave_requests:reject",
     "leave_types:read",
     "leave_types:write",
+    "leave_balances:read",
+    "leave_balances:write",
+    "leave_settings:read",
     "emails:read",
     "emails:send"
   ],
@@ -130,6 +150,8 @@ const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
     "leave_requests:update",
     "leave_requests:cancel",
     "leave_types:read",
+    "leave_balances:read",
+    "leave_settings:read",
     "emails:read",
     "emails:send"
   ]
@@ -336,6 +358,11 @@ async function seedLeaveType(companyId: string, input: { name: string; code: str
 }
 
 async function seedDefaultLeaveWorkflow(companyId: string) {
+  const setting = await prisma.leaveSetting.upsert({
+    where: { companyId },
+    update: { approvalMode: LeaveApprovalMode.MANAGER_HR, deletedAt: null },
+    create: { companyId, approvalMode: LeaveApprovalMode.MANAGER_HR }
+  });
   const [managerRole, companyAdminRole] = await Promise.all([
     prisma.role.findUniqueOrThrow({ where: { companyId_systemName: { companyId, systemName: SystemRole.MANAGER } } }),
     prisma.role.findUniqueOrThrow({ where: { companyId_systemName: { companyId, systemName: SystemRole.COMPANY_ADMIN } } })
@@ -346,14 +373,17 @@ async function seedDefaultLeaveWorkflow(companyId: string) {
   const workflow = existing
     ? await prisma.approvalWorkflow.update({
         where: { id: existing.id },
-        data: { name: "Default Leave Request Approval", isActive: true }
-      })
+      data: { name: "Default Leave Request Approval", isActive: true }
+    })
     : await prisma.approvalWorkflow.create({
         data: {
           companyId,
           entityType: EntityType.LEAVE_REQUEST,
           name: "Default Leave Request Approval",
-          description: "Employee to manager to company admin approval path"
+          description:
+            setting.approvalMode === LeaveApprovalMode.MANAGER_HR
+              ? "Employee to manager to HR approval path"
+              : "Employee to manager approval path"
         }
       });
 
@@ -364,11 +394,46 @@ async function seedDefaultLeaveWorkflow(companyId: string) {
   });
   await prisma.approvalStep.upsert({
     where: { companyId_workflowId_stepOrder: { companyId, workflowId: workflow.id, stepOrder: 2 } },
-    update: { name: "Company Admin Approval", approverRoleId: companyAdminRole.id, approverUserId: null, deletedAt: null },
-    create: { companyId, workflowId: workflow.id, stepOrder: 2, name: "Company Admin Approval", approverRoleId: companyAdminRole.id }
+    update: { name: "HR Approval", approverRoleId: companyAdminRole.id, approverUserId: null, deletedAt: null },
+    create: { companyId, workflowId: workflow.id, stepOrder: 2, name: "HR Approval", approverRoleId: companyAdminRole.id }
   });
 
   return workflow;
+}
+
+async function seedLeaveBalance(input: {
+  companyId: string;
+  employeeId: string;
+  leaveTypeId: string;
+  year: number;
+  allocatedDays: number;
+  usedDays: number;
+}) {
+  await prisma.leaveBalance.upsert({
+    where: {
+      companyId_employeeId_leaveTypeId_year: {
+        companyId: input.companyId,
+        employeeId: input.employeeId,
+        leaveTypeId: input.leaveTypeId,
+        year: input.year
+      }
+    },
+    update: {
+      allocatedDays: input.allocatedDays,
+      usedDays: input.usedDays,
+      remainingDays: input.allocatedDays - input.usedDays,
+      deletedAt: null
+    },
+    create: {
+      companyId: input.companyId,
+      employeeId: input.employeeId,
+      leaveTypeId: input.leaveTypeId,
+      year: input.year,
+      allocatedDays: input.allocatedDays,
+      usedDays: input.usedDays,
+      remainingDays: input.allocatedDays - input.usedDays
+    }
+  });
 }
 
 async function main() {
@@ -556,13 +621,13 @@ async function main() {
     description: "رصيد الإجازات السنوية المدفوعة",
     annualAllowanceDays: 21
   });
-  await seedLeaveType(ids.advancedTech, {
+  const sickLeave = await seedLeaveType(ids.advancedTech, {
     name: "إجازة مرضية",
     code: "SICK",
     description: "الإجازات المرضية المدعومة بتقرير طبي",
     annualAllowanceDays: 14
   });
-  await seedLeaveType(ids.advancedTech, {
+  const emergencyLeave = await seedLeaveType(ids.advancedTech, {
     name: "إجازة طارئة",
     code: "EMERGENCY",
     description: "إجازات الظروف الطارئة",
@@ -574,6 +639,50 @@ async function main() {
     description: "إجازة غير مدفوعة",
     isPaid: false
   });
+  await seedLeaveType(ids.advancedTech, {
+    name: "نصف يوم",
+    code: "HALF_DAY",
+    description: "طلب إجازة لنصف يوم عمل",
+    annualAllowanceDays: 6
+  });
+  await seedLeaveType(ids.advancedTech, {
+    name: "استئذان ساعات",
+    code: "PERMISSION",
+    description: "استئذان لمدة ساعتين إلى أربع ساعات",
+    annualAllowanceDays: 3
+  });
+  await seedLeaveType(ids.advancedTech, {
+    name: "عمل من المنزل",
+    code: "WFH",
+    description: "طلب عمل من المنزل حسب سياسة الشركة",
+    isPaid: true
+  });
+
+  await seedLeaveBalance({
+    companyId: ids.advancedTech,
+    employeeId: ids.employee,
+    leaveTypeId: annualLeave.id,
+    year: 2026,
+    allocatedDays: 21,
+    usedDays: 5
+  });
+  await seedLeaveBalance({
+    companyId: ids.advancedTech,
+    employeeId: ids.employee,
+    leaveTypeId: sickLeave.id,
+    year: 2026,
+    allocatedDays: 14,
+    usedDays: 2
+  });
+  await seedLeaveBalance({
+    companyId: ids.advancedTech,
+    employeeId: ids.employee,
+    leaveTypeId: emergencyLeave.id,
+    year: 2026,
+    allocatedDays: 5,
+    usedDays: 0
+  });
+
   const leaveWorkflow = await seedDefaultLeaveWorkflow(ids.advancedTech);
   const seededLeave = await prisma.leaveRequest.upsert({
     where: { id: "00000000-0000-4000-8000-000000004101" },
@@ -583,6 +692,10 @@ async function main() {
       status: LeaveStatus.PENDING,
       startsAt: new Date("2026-07-14T00:00:00.000Z"),
       endsAt: new Date("2026-07-16T23:59:59.000Z"),
+      durationType: LeaveDurationType.FULL_DAY,
+      durationDays: 3,
+      durationHours: null,
+      halfDayPeriod: null,
       reason: "طلب إجازة سنوية مجدولة",
       deletedAt: null
     },
@@ -595,8 +708,44 @@ async function main() {
       leaveType: annualLeave.name,
       startsAt: new Date("2026-07-14T00:00:00.000Z"),
       endsAt: new Date("2026-07-16T23:59:59.000Z"),
+      durationType: LeaveDurationType.FULL_DAY,
+      durationDays: 3,
       reason: "طلب إجازة سنوية مجدولة",
       status: LeaveStatus.PENDING
+    }
+  });
+  await prisma.leaveRequest.upsert({
+    where: { id: "00000000-0000-4000-8000-000000004102" },
+    update: {
+      leaveTypeId: sickLeave.id,
+      leaveType: sickLeave.name,
+      status: LeaveStatus.APPROVED,
+      startsAt: new Date("2026-07-15T00:00:00.000Z"),
+      endsAt: new Date("2026-07-15T23:59:59.000Z"),
+      durationType: LeaveDurationType.FULL_DAY,
+      durationDays: 1,
+      durationHours: null,
+      halfDayPeriod: null,
+      reason: "إجازة مرضية معتمدة",
+      approvedAt: new Date("2026-07-01T09:00:00.000Z"),
+      rejectedAt: null,
+      cancelledAt: null,
+      deletedAt: null
+    },
+    create: {
+      id: "00000000-0000-4000-8000-000000004102",
+      companyId: ids.advancedTech,
+      employeeId: ids.employee,
+      departmentId: ids.hrDept,
+      leaveTypeId: sickLeave.id,
+      leaveType: sickLeave.name,
+      startsAt: new Date("2026-07-15T00:00:00.000Z"),
+      endsAt: new Date("2026-07-15T23:59:59.000Z"),
+      durationType: LeaveDurationType.FULL_DAY,
+      durationDays: 1,
+      reason: "إجازة مرضية معتمدة",
+      status: LeaveStatus.APPROVED,
+      approvedAt: new Date("2026-07-01T09:00:00.000Z")
     }
   });
   const leaveSteps = await prisma.approvalStep.findMany({

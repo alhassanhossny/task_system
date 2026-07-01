@@ -69,12 +69,35 @@ enum TaskPriority {
 }
 
 enum LeaveStatus {
-  PENDING   @map("pending")
-  APPROVED  @map("approved")
-  REJECTED  @map("rejected")
-  CANCELLED @map("cancelled")
+  PENDING        @map("pending")
+  INFO_REQUESTED @map("info_requested")
+  APPROVED       @map("approved")
+  REJECTED       @map("rejected")
+  CANCELLED      @map("cancelled")
 
   @@map("leave_status")
+}
+
+enum LeaveDurationType {
+  FULL_DAY @map("full_day")
+  HALF_DAY @map("half_day")
+  HOURS    @map("hours")
+
+  @@map("leave_duration_type")
+}
+
+enum LeaveHalfDayPeriod {
+  MORNING   @map("morning")
+  AFTERNOON @map("afternoon")
+
+  @@map("leave_half_day_period")
+}
+
+enum LeaveApprovalMode {
+  MANAGER_ONLY @map("manager_only")
+  MANAGER_HR   @map("manager_hr")
+
+  @@map("leave_approval_mode")
 }
 
 enum EmailDirection {
@@ -103,6 +126,7 @@ enum NotificationType {
   TASK_DUE_SOON
   TASK_OVERDUE
   LEAVE_SUBMITTED
+  LEAVE_INFO_REQUESTED
   LEAVE_APPROVED
   LEAVE_REJECTED
   LEAVE_CANCELLED
@@ -162,6 +186,8 @@ model Company {
   taskWatchers    TaskWatcher[]
   leaveTypes      LeaveType[]
   leaveRequests   LeaveRequest[]
+  leaveBalances   LeaveBalance[]
+  leaveSetting    LeaveSetting?
   emailMessages   EmailMessage[]
   attachments     Attachment[]
   comments        Comment[]
@@ -204,6 +230,7 @@ model User {
   assignedTasks      TaskAssignee[]
   watchedTasks       TaskWatcher[]
   leaveRequests      LeaveRequest[]
+  leaveBalances      LeaveBalance[]
   sentEmails         EmailMessage[] @relation("EmailSender")
   uploadedAttachments Attachment[]  @relation("AttachmentUploader")
   comments           Comment[]      @relation("CommentAuthor")
@@ -464,9 +491,14 @@ model LeaveRequest {
   leaveType    String      @map("leave_type")
   startsAt     DateTime    @map("starts_at") @db.Timestamptz(6)
   endsAt       DateTime    @map("ends_at") @db.Timestamptz(6)
+  durationType LeaveDurationType @default(FULL_DAY) @map("duration_type")
+  durationDays Decimal     @default(1) @map("duration_days") @db.Decimal(5, 2)
+  durationHours Decimal?   @map("duration_hours") @db.Decimal(5, 2)
+  halfDayPeriod LeaveHalfDayPeriod? @map("half_day_period")
   status       LeaveStatus @default(PENDING)
   reason       String?
   submittedAt  DateTime    @default(now()) @map("submitted_at") @db.Timestamptz(6)
+  infoRequestedAt DateTime? @map("info_requested_at") @db.Timestamptz(6)
   approvedAt   DateTime?   @map("approved_at") @db.Timestamptz(6)
   rejectedAt   DateTime?   @map("rejected_at") @db.Timestamptz(6)
   cancelledAt  DateTime?   @map("cancelled_at") @db.Timestamptz(6)
@@ -500,10 +532,47 @@ model LeaveType {
 
   company       Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   leaveRequests LeaveRequest[]
+  leaveBalances LeaveBalance[]
 
   @@unique([companyId, code])
   @@index([companyId, isActive])
   @@map("leave_types")
+}
+
+model LeaveBalance {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  employeeId    String    @map("employee_id") @db.Uuid
+  leaveTypeId   String    @map("leave_type_id") @db.Uuid
+  allocatedDays Decimal   @default(0) @map("allocated_days") @db.Decimal(6, 2)
+  usedDays      Decimal   @default(0) @map("used_days") @db.Decimal(6, 2)
+  remainingDays Decimal   @default(0) @map("remaining_days") @db.Decimal(6, 2)
+  year          Int
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee  User      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, employeeId, leaveTypeId, year])
+  @@index([companyId, employeeId, year])
+  @@index([leaveTypeId])
+  @@map("leave_balances")
+}
+
+model LeaveSetting {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String            @unique @map("company_id") @db.Uuid
+  approvalMode LeaveApprovalMode @default(MANAGER_HR) @map("approval_mode")
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime?         @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("leave_settings")
 }
 
 model EmailMessage {

@@ -42,6 +42,10 @@ export const PERMISSIONS = {
   leaveRequestsReject: "leave_requests:reject",
   leaveTypesRead: "leave_types:read",
   leaveTypesWrite: "leave_types:write",
+  leaveBalancesRead: "leave_balances:read",
+  leaveBalancesWrite: "leave_balances:write",
+  leaveSettingsRead: "leave_settings:read",
+  leaveSettingsWrite: "leave_settings:write",
   emailsRead: "emails:read",
   emailsSend: "emails:send",
   emailTemplatesManage: "email_templates:manage"

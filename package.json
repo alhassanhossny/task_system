@@ -13,6 +13,7 @@
     "test:tenant-isolation": "corepack pnpm --filter @taskflow/api test:tenant-isolation",
     "test:tasks-core": "corepack pnpm --filter @taskflow/api test:tasks-core",
     "test:leave-requests-core": "corepack pnpm --filter @taskflow/api test:leave-requests-core",
+    "test:leave-enhancements": "corepack pnpm --filter @taskflow/api test:leave-enhancements",
     "format": "corepack pnpm -r format",
     "db:generate": "corepack pnpm --filter @taskflow/api prisma:generate",
     "db:migrate": "corepack pnpm --filter @taskflow/api prisma:migrate",

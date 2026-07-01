@@ -9,6 +9,7 @@ import { SearchIndexer } from "../../search/search-indexer.service";
 
 const LEAVE_EVENTS = new Set([
   "LEAVE_SUBMITTED",
+  "LEAVE_INFO_REQUESTED",
   "LEAVE_UPDATED",
   "LEAVE_APPROVAL_STEP_APPROVED",
   "LEAVE_APPROVED",
@@ -118,6 +119,10 @@ export class LeaveEventsHandler implements OnModuleInit, OnModuleDestroy {
       await this.notifyUsers(event, NotificationType.LEAVE_SUBMITTED, approverIds, "Leave request awaiting approval", `${leave.employee.name}'s leave request is waiting for your approval.`);
     }
 
+    if (event.name === "LEAVE_INFO_REQUESTED") {
+      await this.notifyUsers(event, NotificationType.LEAVE_INFO_REQUESTED, [leave.employeeId], "Leave request needs more information", "Your manager requested more information for your leave request.");
+    }
+
     if (event.name === "LEAVE_APPROVED") {
       await this.notifyUsers(event, NotificationType.LEAVE_APPROVED, [leave.employeeId], "Leave request approved", "Your leave request was approved.");
     }
@@ -155,6 +160,7 @@ export class LeaveEventsHandler implements OnModuleInit, OnModuleDestroy {
   private activityTitle(eventName: string, employeeName: string, leaveType: string) {
     const actions: Record<string, string> = {
       LEAVE_SUBMITTED: "Submitted",
+      LEAVE_INFO_REQUESTED: "Requested more information for",
       LEAVE_UPDATED: "Updated",
       LEAVE_APPROVAL_STEP_APPROVED: "Approved a step for",
       LEAVE_APPROVED: "Approved",
@@ -170,6 +176,7 @@ export class LeaveEventsHandler implements OnModuleInit, OnModuleDestroy {
   private activityTitleAr(eventName: string, employeeName: string, leaveType: string) {
     const actions: Record<string, string> = {
       LEAVE_SUBMITTED: "تم تقديم",
+      LEAVE_INFO_REQUESTED: "تم طلب معلومات إضافية حول",
       LEAVE_UPDATED: "تم تحديث",
       LEAVE_APPROVAL_STEP_APPROVED: "تمت الموافقة على خطوة في",
       LEAVE_APPROVED: "تمت الموافقة على",

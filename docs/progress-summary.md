@@ -1,17 +1,17 @@
 # Progress Summary
 
-Last updated: 2026-06-30
+Last updated: 2026-07-01
 
 ## Current Status
 
-Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, and Phase 2B Leave Requests Core are implemented. The project now has two production-style business workflows using the shared SaaS infrastructure.
+Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, Phase 2B Leave Requests Core, and Phase 2B.1 Leave Enhancements are implemented. The project now has production-style task and time-off workflows using the shared SaaS infrastructure.
 
 Current Git state:
 
-- Branch: `feature/leave-requests`
-- Base branch `main` includes merged Phase 2A through `56ef8d5 Update Phase 2A progress summary`.
-- Latest implementation commit: `c811b71 Implement Phase 2B leave requests`.
-- Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature/leave-requests`
+- Branch: `feature/leave-enhancements`
+- Base branch `main` includes merged Phase 2B through `f902ce7 Update Phase 2B progress summary`.
+- Latest implementation commit: `Implement Phase 2B.1 leave enhancements`.
+- Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature/leave-enhancements`
 
 The repository now contains:
 
@@ -140,6 +140,56 @@ The repository now contains:
 - Replaced static Leave Requests UI with API-backed filters, request modal, approval/rejection actions, and detail timeline.
 - Added `test:leave-requests-core` regression coverage.
 
+## Implemented Phase 2B.1 Leave Enhancements
+
+- Promoted Time Off Requests into a fuller HR module without replacing the existing leave architecture.
+- Added leave duration support:
+  - full-day leave
+  - half-day leave with morning/afternoon period
+  - hourly permission requests
+- Added `INFO_REQUESTED` leave status and manager/HR action:
+  - `POST /api/v1/leave-requests/:id/request-info`
+  - employee updates move the request back to pending review.
+- Added company leave settings:
+  - `leave_settings`
+  - `MANAGER_ONLY`
+  - `MANAGER_HR`
+- Updated `ApprovalWorkflowsService` so the default leave workflow is reconciled from company settings.
+- Added leave balance tracking:
+  - `leave_balances`
+  - allocated days
+  - used days
+  - remaining days
+  - year
+- Added leave balance API:
+  - `GET /api/v1/leave-balances`
+  - `POST /api/v1/leave-balances`
+- Added leave settings API:
+  - `GET /api/v1/leave-settings`
+  - `PATCH /api/v1/leave-settings`
+- Added leave calendar and availability APIs:
+  - `GET /api/v1/leave-requests/calendar`
+  - `GET /api/v1/leave-requests/availability`
+- Approval completion now deducts approved days from leave balance inside a database transaction.
+- Leave events now cover `LEAVE_INFO_REQUESTED` and continue to publish activity, audit, notification, and search updates through subscribers.
+- Seed data now includes:
+  - annual, sick, emergency, unpaid, half-day, permission, and work-from-home leave types
+  - leave balances for the sample employee
+  - configurable leave settings
+  - one pending leave request
+  - one approved leave request for calendar/availability widgets
+- Frontend Leave Requests page now includes:
+  - balance summary widgets
+  - remaining annual leave widget
+  - pending approvals widget
+  - team availability widget
+  - leave calendar preview
+  - workflow mode selector
+  - department filter
+  - duration controls in the request modal
+  - request-more-information action
+- Added `test:leave-enhancements` regression coverage.
+
 ## Recent Fixes
 
 - Added locale root redirects:
@@ -156,6 +206,7 @@ The repository now contains:
 - Added pre-Phase-2 hardening for tenant isolation, permission matrix, queues, storage, events, email provider, search indexer, and API v1 routing.
 - Implemented Phase 2A Task Core backend and frontend.
 - Implemented Phase 2B Leave Requests Core backend and frontend.
+- Implemented Phase 2B.1 Leave Enhancements for balances, workflow settings, request-info, calendar, and availability.
 
 ## Local Testing
 
@@ -186,14 +237,19 @@ corepack pnpm lint
 corepack pnpm test:tenant-isolation
 corepack pnpm test:tasks-core
 corepack pnpm test:leave-requests-core
+corepack pnpm test:leave-enhancements
 ```
 
 Additional local smoke checks completed:
 
 - Authenticated seed admin login against `http://localhost:4000/api/v1/auth/login`.
 - Authenticated `GET /api/v1/tasks`, returning 3 seeded tenant tasks.
-- Authenticated `GET /api/v1/leave-types`, returning 4 seeded leave types.
-- Authenticated `GET /api/v1/leave-requests`, returning 1 seeded pending leave request.
+- Authenticated `GET /api/v1/leave-types`, returning 7 seeded leave types.
+- Authenticated `GET /api/v1/leave-requests`, returning seeded pending and approved leave requests.
+- Authenticated `GET /api/v1/leave-balances?year=2026`, returning 3 seeded balances.
+- Authenticated `GET /api/v1/leave-settings`, returning `MANAGER_HR`.
+- Authenticated `GET /api/v1/leave-requests/calendar`, returning 1 approved seeded leave request for July 2026.
+- Authenticated `GET /api/v1/leave-requests/availability`, returning 1 employee on leave and 2 available employees for July 15, 2026.
 - Web route checks returned HTTP 200:
   - `/ar/tasks/list`
   - `/ar/tasks/kanban`
@@ -204,7 +260,7 @@ Additional local smoke checks completed:
 
 ## Remaining Work
 
-The following modules should be implemented after Phase 2B approval:
+The following modules should be implemented after Phase 2B.1 approval:
 
 - Task refinements:
   - richer multi-assignee editing
@@ -212,9 +268,9 @@ The following modules should be implemented after Phase 2B approval:
   - reminder queue processors for due-soon and overdue notifications
   - uploaded binary file handling beyond attachment metadata
 - Leave request refinements:
-  - configurable workflow editor UI
-  - leave balance tracking
-  - calendar availability view
+  - richer workflow editor UI beyond the current Manager-only / Manager-HR selector
+  - leave accrual policy automation
+  - public holiday calendars
 - Email center backend implementation.
 - SMTP email worker and delivery status processing.
 - Real company switcher behavior for Super Admin users.
@@ -233,3 +289,4 @@ Recent completed commits:
 - `8db5bbc Add pre-Phase-2 architecture safeguards`
 - `f351a40 Implement Phase 2A task core`
 - `c811b71 Implement Phase 2B leave requests`
+- `Implement Phase 2B.1 leave enhancements`
