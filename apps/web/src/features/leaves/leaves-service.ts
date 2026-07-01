@@ -2,9 +2,10 @@ import { apiFetch } from "@/lib/api/client";
 import type { TaskDepartment, TaskUser } from "@/features/tasks/tasks-service";
 
 export type LeaveStatus = "PENDING" | "INFO_REQUESTED" | "APPROVED" | "REJECTED" | "CANCELLED";
-export type LeaveDurationType = "FULL_DAY" | "HALF_DAY" | "HOURS";
+export type LeaveDurationType = "FULL_DAY" | "HALF_DAY" | "HALF_DAY_AM" | "HALF_DAY_PM" | "HOURS";
 export type LeaveHalfDayPeriod = "MORNING" | "AFTERNOON";
 export type LeaveApprovalMode = "MANAGER_ONLY" | "MANAGER_HR";
+export type LeaveRequestType = "LEAVE" | "PERMISSION";
 type DecimalValue = number | string;
 
 export interface LeaveUser extends TaskUser {
@@ -49,9 +50,13 @@ export interface LeaveRequest {
   employeeId: string;
   departmentId?: string | null;
   leaveTypeId?: string | null;
+  requestNumber?: string | null;
+  requestType: LeaveRequestType;
   leaveType: string;
   startsAt: string;
   endsAt: string;
+  startTime?: string | null;
+  endTime?: string | null;
   durationType: LeaveDurationType;
   durationDays: DecimalValue;
   durationHours?: DecimalValue | null;
@@ -75,6 +80,7 @@ export interface LeaveFilters {
   employeeId?: string;
   leaveTypeId?: string;
   departmentId?: string;
+  requestType?: LeaveRequestType;
   startsFrom?: string;
   startsTo?: string;
   search?: string;
@@ -83,8 +89,11 @@ export interface LeaveFilters {
 export interface CreateLeavePayload {
   leaveTypeId: string;
   employeeId?: string;
+  requestType?: LeaveRequestType;
   startsAt: string;
   endsAt: string;
+  startTime?: string;
+  endTime?: string;
   durationType?: LeaveDurationType;
   durationHours?: number;
   halfDayPeriod?: LeaveHalfDayPeriod;

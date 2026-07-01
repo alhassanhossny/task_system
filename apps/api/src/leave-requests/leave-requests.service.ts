@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { EntityType, LeaveApprovalMode, LeaveDurationType, LeaveHalfDayPeriod, LeaveStatus, Prisma } from "@prisma/client";
+import { EntityType, LeaveApprovalMode, LeaveDurationType, LeaveHalfDayPeriod, LeaveRequestType, LeaveStatus, Prisma } from "@prisma/client";
 import { ApprovalWorkflowsService } from "../approval-workflows/approval-workflows.service";
 import { AttachmentsService } from "../attachments/attachments.service";
 import { CommentsService } from "../comments/comments.service";
@@ -10,13 +10,12 @@ import { CreateLeaveAttachmentDto } from "./dto/create-leave-attachment.dto";
 import { CreateLeaveCommentDto } from "./dto/create-leave-comment.dto";
 import { CreateLeaveRequestDto } from "./dto/create-leave-request.dto";
 import { CreateLeaveTypeDto } from "./dto/create-leave-type.dto";
-import { LeaveBalanceQueryDto } from "./dto/leave-balance-query.dto";
 import { LeaveCalendarQueryDto } from "./dto/leave-calendar-query.dto";
 import { LeaveQueryDto } from "./dto/leave-query.dto";
 import { UpdateLeaveSettingsDto } from "./dto/update-leave-settings.dto";
 import { UpdateLeaveRequestDto } from "./dto/update-leave-request.dto";
 import { UpdateLeaveTypeDto } from "./dto/update-leave-type.dto";
-import { UpsertLeaveBalanceDto } from "./dto/upsert-leave-balance.dto";
+import { LeaveBalancesService } from "./leave-balances.service";
 
 @Injectable()
 export class LeaveRequestsService {
@@ -25,7 +24,8 @@ export class LeaveRequestsService {
     private readonly eventBus: DomainEventBus,
     private readonly approvalWorkflows: ApprovalWorkflowsService,
     private readonly commentsService: CommentsService,
-    private readonly attachmentsService: AttachmentsService
+    private readonly attachmentsService: AttachmentsService,
+    private readonly leaveBalancesService: LeaveBalancesService
   ) {}
 
   findSettings(companyId: string) {
@@ -38,61 +38,6 @@ export class LeaveRequestsService {
 
   async updateSettings(companyId: string, dto: UpdateLeaveSettingsDto) {
     return this.approvalWorkflows.configureLeaveWorkflow(companyId, dto.approvalMode);
-  }
-
-  findBalances(companyId: string, query: LeaveBalanceQueryDto) {
-    return this.prisma.leaveBalance.findMany({
-      where: {
-        companyId,
-        deletedAt: null,
-        employeeId: query.employeeId,
-        year: query.year ?? new Date().getFullYear()
-      },
-      orderBy: [{ employee: { name: "asc" } }, { leaveType: { name: "asc" } }],
-      include: {
-        employee: { select: { id: true, name: true, email: true, jobTitle: true } },
-        leaveType: { select: { id: true, name: true, code: true, isPaid: true } }
-      }
-    });
-  }
-
-  async upsertBalance(companyId: string, dto: UpsertLeaveBalanceDto) {
-    await Promise.all([this.ensureUser(companyId, dto.employeeId), this.ensureLeaveType(companyId, dto.leaveTypeId)]);
-
-    const usedDays = dto.usedDays ?? 0;
-    if (usedDays > dto.allocatedDays) {
-      throw new BadRequestException("Used leave days cannot exceed allocated days");
-    }
-
-    return this.prisma.leaveBalance.upsert({
-      where: {
-        companyId_employeeId_leaveTypeId_year: {
-          companyId,
-          employeeId: dto.employeeId,
-          leaveTypeId: dto.leaveTypeId,
-          year: dto.year
-        }
-      },
-      update: {
-        allocatedDays: dto.allocatedDays,
-        usedDays,
-        remainingDays: dto.allocatedDays - usedDays,
-        deletedAt: null
-      },
-      create: {
-        companyId,
-        employeeId: dto.employeeId,
-        leaveTypeId: dto.leaveTypeId,
-        year: dto.year,
-        allocatedDays: dto.allocatedDays,
-        usedDays,
-        remainingDays: dto.allocatedDays - usedDays
-      },
-      include: {
-        employee: { select: { id: true, name: true, email: true, jobTitle: true } },
-        leaveType: { select: { id: true, name: true, code: true, isPaid: true } }
-      }
-    });
   }
 
   findTypes(companyId: string) {
@@ -166,8 +111,17 @@ export class LeaveRequestsService {
       throw new BadRequestException("Leave end date must be after start date");
     }
 
-    const duration = this.resolveDuration(dto, startsAt, endsAt);
-    await this.ensureBalanceAvailable(companyId, employeeId, leaveType, startsAt.getFullYear(), duration.durationDays);
+    const duration = this.resolveDuration(
+      {
+        ...dto,
+        durationType: dto.durationType ?? (dto.requestType === LeaveRequestType.PERMISSION ? LeaveDurationType.HOURS : undefined)
+      },
+      startsAt,
+      endsAt
+    );
+    const requestType = this.resolveRequestType(dto.requestType, duration.durationType);
+    const timeWindow = this.resolveTimeWindow(requestType, dto.startTime, dto.endTime, startsAt, endsAt, duration.durationHours);
+    await this.leaveBalancesService.ensureAvailable(companyId, employeeId, leaveType, startsAt.getFullYear(), duration.durationDays);
 
     const leave = await this.prisma.leaveRequest.create({
       data: {
@@ -175,12 +129,16 @@ export class LeaveRequestsService {
         employeeId,
         departmentId: employee.departmentId,
         leaveTypeId: leaveType.id,
+        requestNumber: await this.nextRequestNumber(companyId, requestType),
+        requestType,
         leaveType: leaveType.name,
         startsAt,
         endsAt,
+        startTime: timeWindow.startTime,
+        endTime: timeWindow.endTime,
         durationType: duration.durationType,
         durationDays: duration.durationDays,
-        durationHours: duration.durationHours,
+        durationHours: timeWindow.durationHours ?? duration.durationHours,
         halfDayPeriod: duration.halfDayPeriod,
         reason: dto.reason,
         status: LeaveStatus.PENDING,
@@ -191,13 +149,18 @@ export class LeaveRequestsService {
 
     await this.approvalWorkflows.startWorkflow(companyId, EntityType.LEAVE_REQUEST, leave.id);
 
-    this.publishLeaveEvent("LEAVE_SUBMITTED", companyId, actorId, leave.id, {
+    this.publishLeaveEvent(requestType === LeaveRequestType.PERMISSION ? "PERMISSION_REQUEST_SUBMITTED" : "LEAVE_SUBMITTED", companyId, actorId, leave.id, {
       leaveRequestId: leave.id,
+      requestNumber: leave.requestNumber,
+      requestType,
       employeeId,
       leaveType: leaveType.name,
       startsAt: leave.startsAt,
       endsAt: leave.endsAt,
-      durationDays: duration.durationDays
+      startTime: leave.startTime,
+      endTime: leave.endTime,
+      durationDays: duration.durationDays,
+      durationHours: leave.durationHours ? Number(leave.durationHours) : null
     });
 
     return this.findOne(companyId, leave.id);
@@ -223,28 +186,42 @@ export class LeaveRequestsService {
       {
         startsAt: startsAt.toISOString(),
         endsAt: endsAt.toISOString(),
-        durationType: dto.durationType ?? existing.durationType,
+        durationType: dto.durationType ?? (dto.requestType === LeaveRequestType.PERMISSION ? LeaveDurationType.HOURS : existing.durationType),
         durationHours: dto.durationHours === undefined ? (existing.durationHours ? Number(existing.durationHours) : undefined) : dto.durationHours ?? undefined,
-        halfDayPeriod: dto.halfDayPeriod === undefined ? existing.halfDayPeriod ?? undefined : dto.halfDayPeriod ?? undefined
+        halfDayPeriod: dto.halfDayPeriod === undefined ? existing.halfDayPeriod ?? undefined : dto.halfDayPeriod ?? undefined,
+        startTime: dto.startTime === undefined ? existing.startTime?.toISOString() : dto.startTime ?? undefined,
+        endTime: dto.endTime === undefined ? existing.endTime?.toISOString() : dto.endTime ?? undefined
       },
       startsAt,
       endsAt
     );
 
     if (targetLeaveType) {
-      await this.ensureBalanceAvailable(companyId, existing.employeeId, targetLeaveType, startsAt.getFullYear(), duration.durationDays);
+      await this.leaveBalancesService.ensureAvailable(companyId, existing.employeeId, targetLeaveType, startsAt.getFullYear(), duration.durationDays);
     }
+    const requestType = this.resolveRequestType(dto.requestType ?? existing.requestType, duration.durationType);
+    const timeWindow = this.resolveTimeWindow(
+      requestType,
+      dto.startTime === undefined ? existing.startTime?.toISOString() : dto.startTime ?? undefined,
+      dto.endTime === undefined ? existing.endTime?.toISOString() : dto.endTime ?? undefined,
+      startsAt,
+      endsAt,
+      duration.durationHours
+    );
 
     const leave = await this.prisma.leaveRequest.update({
       where: { id },
       data: {
         leaveTypeId: leaveType?.id,
         leaveType: leaveType?.name,
+        requestType,
         startsAt: dto.startsAt ? startsAt : undefined,
         endsAt: dto.endsAt ? endsAt : undefined,
+        startTime: timeWindow.startTime,
+        endTime: timeWindow.endTime,
         durationType: duration.durationType,
         durationDays: duration.durationDays,
-        durationHours: duration.durationHours,
+        durationHours: timeWindow.durationHours ?? duration.durationHours,
         halfDayPeriod: duration.halfDayPeriod,
         status: existing.status === LeaveStatus.INFO_REQUESTED ? LeaveStatus.PENDING : undefined,
         infoRequestedAt: existing.status === LeaveStatus.INFO_REQUESTED ? null : undefined,
@@ -255,8 +232,11 @@ export class LeaveRequestsService {
 
     this.publishLeaveEvent("LEAVE_UPDATED", companyId, actorId, id, {
       leaveRequestId: id,
+      requestNumber: leave.requestNumber,
+      requestType,
       leaveType: leave.leaveType,
-      durationDays: duration.durationDays
+      durationDays: duration.durationDays,
+      durationHours: leave.durationHours ? Number(leave.durationHours) : null
     });
 
     return leave;
@@ -270,20 +250,26 @@ export class LeaveRequestsService {
     }
 
     const result = await this.approvalWorkflows.approveNext(companyId, EntityType.LEAVE_REQUEST, id, actorId, dto.comment);
-    const leave = result.complete
+    const approvalResult = result.complete
       ? await this.prisma.$transaction(async (tx) => {
           const approved = await tx.leaveRequest.update({
             where: { id },
             data: { status: LeaveStatus.APPROVED, approvedAt: new Date() },
             include: this.leaveDetailInclude()
           });
-          await this.consumeApprovedLeaveBalance(tx, companyId, approved);
-          return approved;
+          const balance = await this.leaveBalancesService.consumeApproved(tx, companyId, approved);
+          return { leave: approved, balance };
         })
-      : await this.findOne(companyId, id);
+      : { leave: await this.findOne(companyId, id), balance: null };
+    const leave = approvalResult.leave;
 
-    this.publishLeaveEvent(result.complete ? "LEAVE_APPROVED" : "LEAVE_APPROVAL_STEP_APPROVED", companyId, actorId, id, {
+    this.leaveBalancesService.publishBalanceUpdated(companyId, actorId, approvalResult.balance);
+
+    const completeEventName = leave.requestType === LeaveRequestType.PERMISSION ? "PERMISSION_REQUEST_APPROVED" : "LEAVE_APPROVED";
+    this.publishLeaveEvent(result.complete ? completeEventName : "LEAVE_APPROVAL_STEP_APPROVED", companyId, actorId, id, {
       leaveRequestId: id,
+      requestNumber: leave.requestNumber,
+      requestType: leave.requestType,
       approvalActionId: result.action.id,
       complete: result.complete
     });
@@ -305,8 +291,11 @@ export class LeaveRequestsService {
       include: this.leaveDetailInclude()
     });
 
-    this.publishLeaveEvent("LEAVE_REJECTED", companyId, actorId, id, {
+    const eventName = leave.requestType === LeaveRequestType.PERMISSION ? "PERMISSION_REQUEST_REJECTED" : "LEAVE_REJECTED";
+    this.publishLeaveEvent(eventName, companyId, actorId, id, {
       leaveRequestId: id,
+      requestNumber: leave.requestNumber,
+      requestType: leave.requestType,
       approvalActionId: result.action.id
     });
 
@@ -434,6 +423,8 @@ export class LeaveRequestsService {
         deletedAt: null,
         status: LeaveStatus.APPROVED,
         departmentId: query.departmentId,
+        leaveTypeId: query.leaveTypeId,
+        employeeId: query.employeeId,
         startsAt: { lte: to },
         endsAt: { gte: from }
       },
@@ -473,6 +464,8 @@ export class LeaveRequestsService {
           deletedAt: null,
           status: LeaveStatus.APPROVED,
           departmentId: query.departmentId,
+          leaveTypeId: query.leaveTypeId,
+          employeeId: query.employeeId,
           startsAt: { lte: dayEnd },
           endsAt: { gte: dayStart }
         },
@@ -494,29 +487,39 @@ export class LeaveRequestsService {
   }
 
   private resolveDuration(
-    dto: Pick<CreateLeaveRequestDto, "durationType" | "durationHours" | "halfDayPeriod" | "startsAt" | "endsAt">,
+    dto: Pick<CreateLeaveRequestDto, "durationType" | "durationHours" | "halfDayPeriod" | "startsAt" | "endsAt" | "startTime" | "endTime">,
     startsAt: Date,
     endsAt: Date
   ) {
     const durationType = dto.durationType ?? LeaveDurationType.FULL_DAY;
 
-    if (durationType === LeaveDurationType.HALF_DAY) {
+    if (
+      durationType === LeaveDurationType.HALF_DAY ||
+      durationType === LeaveDurationType.HALF_DAY_AM ||
+      durationType === LeaveDurationType.HALF_DAY_PM
+    ) {
       this.ensureSameCalendarDay(startsAt, endsAt, "Half-day leave must start and end on the same day");
 
       return {
         durationType,
         durationDays: 0.5,
         durationHours: null,
-        halfDayPeriod: dto.halfDayPeriod ?? LeaveHalfDayPeriod.MORNING
+        halfDayPeriod:
+          durationType === LeaveDurationType.HALF_DAY_PM
+            ? LeaveHalfDayPeriod.AFTERNOON
+            : durationType === LeaveDurationType.HALF_DAY_AM
+              ? LeaveHalfDayPeriod.MORNING
+              : dto.halfDayPeriod ?? LeaveHalfDayPeriod.MORNING
       };
     }
 
     if (durationType === LeaveDurationType.HOURS) {
       this.ensureSameCalendarDay(startsAt, endsAt, "Hourly permission must start and end on the same day");
 
-      const durationHours = dto.durationHours;
+      const durationHours =
+        dto.durationHours ?? (dto.startTime && dto.endTime ? this.hoursBetween(new Date(dto.startTime), new Date(dto.endTime)) : undefined);
       if (!durationHours) {
-        throw new BadRequestException("Hourly permission requires duration hours");
+        throw new BadRequestException("Hourly permission requires duration hours or start and end times");
       }
 
       return {
@@ -535,99 +538,48 @@ export class LeaveRequestsService {
     };
   }
 
-  private async ensureBalanceAvailable(
-    companyId: string,
-    employeeId: string,
-    leaveType: Awaited<ReturnType<LeaveRequestsService["ensureLeaveType"]>>,
-    year: number,
-    durationDays: number
-  ) {
-    if (!leaveType.annualAllowanceDays) {
-      return;
+  private resolveRequestType(requestType: LeaveRequestType | undefined, durationType: LeaveDurationType) {
+    if (requestType) {
+      return requestType;
     }
 
-    const balance = await this.ensureBalance(companyId, employeeId, leaveType.id, year, leaveType.annualAllowanceDays);
-
-    if (Number(balance.remainingDays) < durationDays) {
-      throw new BadRequestException("Leave balance is not sufficient for this request");
-    }
+    return durationType === LeaveDurationType.HOURS ? LeaveRequestType.PERMISSION : LeaveRequestType.LEAVE;
   }
 
-  private async consumeApprovedLeaveBalance(
-    tx: Prisma.TransactionClient,
-    companyId: string,
-    leave: { employeeId: string; leaveTypeId: string | null; startsAt: Date; durationDays: Prisma.Decimal | number }
+  private resolveTimeWindow(
+    requestType: LeaveRequestType,
+    startTime: string | undefined,
+    endTime: string | undefined,
+    startsAt: Date,
+    endsAt: Date,
+    durationHours: number | null
   ) {
-    if (!leave.leaveTypeId) {
-      return;
+    if (requestType !== LeaveRequestType.PERMISSION) {
+      return { startTime: null, endTime: null, durationHours: null };
     }
 
-    const leaveType = await tx.leaveType.findFirst({
-      where: { companyId, id: leave.leaveTypeId, deletedAt: null }
-    });
+    const resolvedStart = startTime ? new Date(startTime) : startsAt;
+    const resolvedEnd = endTime ? new Date(endTime) : endsAt;
 
-    if (!leaveType?.annualAllowanceDays) {
-      return;
+    if (resolvedEnd <= resolvedStart) {
+      throw new BadRequestException("Permission end time must be after start time");
     }
 
-    const year = leave.startsAt.getFullYear();
-    const balance = await tx.leaveBalance.upsert({
-      where: {
-        companyId_employeeId_leaveTypeId_year: {
-          companyId,
-          employeeId: leave.employeeId,
-          leaveTypeId: leave.leaveTypeId,
-          year
-        }
-      },
-      update: { deletedAt: null },
-      create: {
-        companyId,
-        employeeId: leave.employeeId,
-        leaveTypeId: leave.leaveTypeId,
-        year,
-        allocatedDays: leaveType.annualAllowanceDays,
-        usedDays: 0,
-        remainingDays: leaveType.annualAllowanceDays
-      }
-    });
-    const durationDays = Number(leave.durationDays);
-    const remainingDays = Number(balance.remainingDays);
+    const calculatedHours = Math.round(((resolvedEnd.getTime() - resolvedStart.getTime()) / 3600000) * 100) / 100;
+    const resolvedHours = durationHours ?? calculatedHours;
 
-    if (remainingDays < durationDays) {
-      throw new BadRequestException("Leave balance is not sufficient for approval");
+    if (resolvedHours <= 0 || resolvedHours > 8) {
+      throw new BadRequestException("Permission duration must be between 1 and 8 hours");
     }
 
-    await tx.leaveBalance.update({
-      where: { id: balance.id },
-      data: {
-        usedDays: Number(balance.usedDays) + durationDays,
-        remainingDays: remainingDays - durationDays
-      }
-    });
+    return { startTime: resolvedStart, endTime: resolvedEnd, durationHours: resolvedHours };
   }
 
-  private ensureBalance(companyId: string, employeeId: string, leaveTypeId: string, year: number, allocatedDays: number) {
-    return this.prisma.leaveBalance.upsert({
-      where: {
-        companyId_employeeId_leaveTypeId_year: {
-          companyId,
-          employeeId,
-          leaveTypeId,
-          year
-        }
-      },
-      update: { deletedAt: null },
-      create: {
-        companyId,
-        employeeId,
-        leaveTypeId,
-        year,
-        allocatedDays,
-        usedDays: 0,
-        remainingDays: allocatedDays
-      }
-    });
+  private async nextRequestNumber(companyId: string, requestType: LeaveRequestType) {
+    const count = await this.prisma.leaveRequest.count({ where: { companyId } });
+    const prefix = requestType === LeaveRequestType.PERMISSION ? "PR" : "LR";
+
+    return `${prefix}-${String(count + 1).padStart(5, "0")}`;
   }
 
   private fullDayDuration(startsAt: Date, endsAt: Date) {
@@ -635,6 +587,14 @@ export class LeaveRequestsService {
     const end = Date.UTC(endsAt.getUTCFullYear(), endsAt.getUTCMonth(), endsAt.getUTCDate());
 
     return Math.max(1, Math.floor((end - start) / 86400000) + 1);
+  }
+
+  private hoursBetween(startsAt: Date, endsAt: Date) {
+    if (endsAt <= startsAt) {
+      throw new BadRequestException("Permission end time must be after start time");
+    }
+
+    return Math.round(((endsAt.getTime() - startsAt.getTime()) / 3600000) * 100) / 100;
   }
 
   private ensureSameCalendarDay(startsAt: Date, endsAt: Date, message: string) {
@@ -652,6 +612,7 @@ export class LeaveRequestsService {
       companyId,
       deletedAt: null,
       status: query.status,
+      requestType: query.requestType,
       employeeId: query.employeeId,
       leaveTypeId: query.leaveTypeId,
       departmentId: query.departmentId,
@@ -664,8 +625,10 @@ export class LeaveRequestsService {
           : undefined,
       OR: query.search
         ? [
+            { requestNumber: { contains: query.search, mode: "insensitive" } },
             { leaveType: { contains: query.search, mode: "insensitive" } },
             { reason: { contains: query.search, mode: "insensitive" } },
+            { department: { name: { contains: query.search, mode: "insensitive" } } },
             { employee: { name: { contains: query.search, mode: "insensitive" } } }
           ]
         : undefined

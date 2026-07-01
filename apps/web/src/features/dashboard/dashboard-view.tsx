@@ -1,14 +1,91 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { Calendar, CheckSquare, Mail, TrendingUp, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useAuth } from "@/features/auth/auth-store";
+import { leavesService } from "@/features/leaves/leaves-service";
 import { ACTIVITIES, DEPT_CHART, STATUS_CHART } from "@/features/prototype/data";
 import { useUiText } from "@/features/prototype/use-ui-text";
 
 export function DashboardView() {
   const { t, lang } = useUiText();
+  const { accessToken, user } = useAuth();
+  const [today, setToday] = useState("");
+  const context = useMemo(() => (accessToken && user ? { token: accessToken, companyId: user.companyId } : null), [accessToken, user]);
   const statsChartData = STATUS_CHART.map((d) => ({ name: lang === "ar" ? d.name : d.nameEn, value: d.value, fill: d.fill }));
   const deptChartData = DEPT_CHART.map((d) => ({ name: lang === "ar" ? d.nameAr : d.name, tasks: d.tasks, fill: d.fill }));
+
+  useEffect(() => {
+    setToday(new Date().toISOString().slice(0, 10));
+  }, []);
+
+  const balanceYear = today ? Number(today.slice(0, 4)) : null;
+  const availabilityRange = useMemo(
+    () =>
+      today
+        ? {
+            from: `${today}T00:00:00.000Z`,
+            to: `${today}T23:59:59.999Z`
+          }
+        : null,
+    [today]
+  );
+  const balancesQuery = useQuery({
+    queryKey: ["dashboard", "leave-balances", balanceYear],
+    queryFn: () => leavesService.balances(context!, { year: balanceYear ?? undefined }),
+    enabled: Boolean(context && balanceYear)
+  });
+  const pendingLeavesQuery = useQuery({
+    queryKey: ["dashboard", "pending-leaves"],
+    queryFn: () => leavesService.list(context!, { status: "PENDING" }),
+    enabled: Boolean(context)
+  });
+  const approvedLeavesQuery = useQuery({
+    queryKey: ["dashboard", "approved-leaves"],
+    queryFn: () => leavesService.list(context!, { status: "APPROVED" }),
+    enabled: Boolean(context)
+  });
+  const availabilityQuery = useQuery({
+    queryKey: ["dashboard", "team-availability", availabilityRange],
+    queryFn: () => leavesService.availability(context!, availabilityRange!),
+    enabled: Boolean(context && availabilityRange)
+  });
+  const balances = balancesQuery.data ?? [];
+  const annualBalance = balances.find((balance) => balance.leaveType.code === "ANNUAL") ?? balances[0];
+  const approvedLeaves = approvedLeavesQuery.data ?? [];
+  const upcomingLeaves = approvedLeaves.filter((leave) => (today ? leave.startsAt.slice(0, 10) >= today : false)).length;
+  const timeOffCards = [
+    {
+      label: lang === "ar" ? "رصيد الإجازة السنوية" : "Remaining Annual Leave",
+      value: annualBalance ? formatDecimal(annualBalance.remainingDays) : "-",
+      change: lang === "ar" ? "للموظف الحالي" : "current employee",
+      I: Calendar,
+      accent: "purple"
+    },
+    {
+      label: lang === "ar" ? "طلبات بانتظار الموافقة" : "Pending Approvals",
+      value: String(pendingLeavesQuery.data?.length ?? 0),
+      change: lang === "ar" ? "طلبات نشطة" : "active requests",
+      I: CheckSquare,
+      accent: "amber"
+    },
+    {
+      label: lang === "ar" ? "الفريق خارج العمل اليوم" : "Team Away Today",
+      value: String(availabilityQuery.data?.onLeaveCount ?? 0),
+      change: lang === "ar" ? `${availabilityQuery.data?.availableCount ?? 0} متاح` : `${availabilityQuery.data?.availableCount ?? 0} available`,
+      I: Users,
+      accent: "blue"
+    },
+    {
+      label: lang === "ar" ? "إجازات قادمة" : "Upcoming Team Absences",
+      value: String(upcomingLeaves),
+      change: lang === "ar" ? "إجازات معتمدة" : "approved leave",
+      I: TrendingUp,
+      accent: "green"
+    }
+  ];
   const statCards = [
     { label: t.totalEmployees, value: lang === "ar" ? "٧" : "7", change: lang === "ar" ? "+٢ هذا الشهر" : "+2 this month", positive: true, I: Users, accent: "blue" },
     { label: t.openTasks, value: lang === "ar" ? "٩" : "9", change: lang === "ar" ? "+٣ اليوم" : "+3 today", positive: true, I: CheckSquare, accent: "amber" },
@@ -39,6 +116,26 @@ export function DashboardView() {
               <div className="text-3xl font-bold text-foreground">{s.value}</div>
               <div className="text-sm font-medium text-muted-foreground mt-1">{s.label}</div>
               <div className={`text-xs mt-2 font-medium ${s.positive ? "text-green-500" : "text-red-400"}`}>{s.change}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        {timeOffCards.map((s) => {
+          const ac = accentMap[s.accent];
+          const Icon = s.I;
+          return (
+            <div key={s.label} className="bg-card rounded-2xl border border-border p-5 hover:shadow-md transition-shadow group">
+              <div className="flex items-center justify-between mb-4">
+                <div className={`w-11 h-11 ${ac.bg} rounded-xl flex items-center justify-center`}>
+                  <Icon className={`w-5 h-5 ${ac.icon}`} />
+                </div>
+                <span className="text-xs font-bold text-muted-foreground">{lang === "ar" ? "إجازات" : "Time off"}</span>
+              </div>
+              <div className="text-3xl font-bold text-foreground">{s.value}</div>
+              <div className="text-sm font-medium text-muted-foreground mt-1">{s.label}</div>
+              <div className="text-xs mt-2 font-medium text-primary">{s.change}</div>
             </div>
           );
         })}
@@ -119,4 +216,9 @@ export function DashboardView() {
       </div>
     </div>
   );
+}
+
+function formatDecimal(value: string | number) {
+  const numeric = Number(value);
+  return Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(1);
 }

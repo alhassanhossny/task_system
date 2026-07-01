@@ -79,11 +79,20 @@ enum LeaveStatus {
 }
 
 enum LeaveDurationType {
-  FULL_DAY @map("full_day")
-  HALF_DAY @map("half_day")
-  HOURS    @map("hours")
+  FULL_DAY    @map("full_day")
+  HALF_DAY    @map("half_day")
+  HALF_DAY_AM @map("half_day_am")
+  HALF_DAY_PM @map("half_day_pm")
+  HOURS       @map("hours")
 
   @@map("leave_duration_type")
+}
+
+enum LeaveRequestType {
+  LEAVE      @map("leave")
+  PERMISSION @map("permission")
+
+  @@map("leave_request_type")
 }
 
 enum LeaveHalfDayPeriod {
@@ -488,9 +497,13 @@ model LeaveRequest {
   employeeId   String      @map("employee_id") @db.Uuid
   departmentId String?     @map("department_id") @db.Uuid
   leaveTypeId  String?     @map("leave_type_id") @db.Uuid
+  requestNumber String?    @map("request_number")
+  requestType  LeaveRequestType @default(LEAVE) @map("request_type")
   leaveType    String      @map("leave_type")
   startsAt     DateTime    @map("starts_at") @db.Timestamptz(6)
   endsAt       DateTime    @map("ends_at") @db.Timestamptz(6)
+  startTime    DateTime?   @map("start_time") @db.Timestamptz(6)
+  endTime      DateTime?   @map("end_time") @db.Timestamptz(6)
   durationType LeaveDurationType @default(FULL_DAY) @map("duration_type")
   durationDays Decimal     @default(1) @map("duration_days") @db.Decimal(5, 2)
   durationHours Decimal?   @map("duration_hours") @db.Decimal(5, 2)
@@ -513,7 +526,9 @@ model LeaveRequest {
 
   @@index([companyId, status])
   @@index([companyId, leaveTypeId])
+  @@index([companyId, requestType])
   @@index([employeeId])
+  @@unique([companyId, requestNumber])
   @@map("leave_requests")
 }
 

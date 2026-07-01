@@ -1,7 +1,8 @@
 export type TaskStatus = "NEW" | "ASSIGNED" | "IN_PROGRESS" | "PENDING" | "COMPLETED" | "CANCELLED";
 export type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 export type LeaveStatus = "PENDING" | "INFO_REQUESTED" | "APPROVED" | "REJECTED" | "CANCELLED";
-export type LeaveDurationType = "FULL_DAY" | "HALF_DAY" | "HOURS";
+export type LeaveDurationType = "FULL_DAY" | "HALF_DAY" | "HALF_DAY_AM" | "HALF_DAY_PM" | "HOURS";
+export type LeaveRequestType = "LEAVE" | "PERMISSION";
 export type LeaveHalfDayPeriod = "MORNING" | "AFTERNOON";
 export type LeaveApprovalMode = "MANAGER_ONLY" | "MANAGER_HR";
 export type EmailDirection = "inbound" | "outbound";
@@ -37,8 +38,12 @@ export interface LeaveRequestDraft {
   companyId: string;
   employeeId: string;
   leaveTypeId: string;
+  requestNumber?: string | null;
+  requestType: LeaveRequestType;
   startsAt: string;
   endsAt: string;
+  startTime?: string | null;
+  endTime?: string | null;
   durationType: LeaveDurationType;
   durationDays: number;
   durationHours?: number | null;

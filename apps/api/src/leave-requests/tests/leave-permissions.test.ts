@@ -1,4 +1,4 @@
-import { EntityType, LeaveApprovalMode, LeaveDurationType, LeaveHalfDayPeriod, LeaveStatus, SystemRole, UserStatus } from "@prisma/client";
+import { EntityType, LeaveApprovalMode, LeaveRequestType, LeaveStatus, NotificationType, SystemRole, UserStatus } from "@prisma/client";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { ApprovalWorkflowsService } from "../../approval-workflows/approval-workflows.service";
@@ -33,20 +33,13 @@ async function main() {
   leaveEventsHandler.onModuleInit();
 
   const company = await prisma.company.create({
-    data: {
-      name: `Leave Enhancements ${suffix}`,
-      slug: `leave-enhancements-${suffix}`
-    }
+    data: { name: `Permission Tenant ${suffix}`, slug: `permission-tenant-${suffix}` }
   });
 
   try {
     const [managerRole, adminRole] = await Promise.all([
-      prisma.role.create({
-        data: { companyId: company.id, name: "Manager", systemName: SystemRole.MANAGER }
-      }),
-      prisma.role.create({
-        data: { companyId: company.id, name: "Company Admin", systemName: SystemRole.COMPANY_ADMIN }
-      })
+      prisma.role.create({ data: { companyId: company.id, name: "Manager", systemName: SystemRole.MANAGER } }),
+      prisma.role.create({ data: { companyId: company.id, name: "Company Admin", systemName: SystemRole.COMPANY_ADMIN } })
     ]);
     const [employee, manager] = await Promise.all([
       prisma.user.create({
@@ -54,7 +47,7 @@ async function main() {
           companyId: company.id,
           email: `employee-${suffix}@example.com`,
           passwordHash: "test",
-          name: "Balance Employee",
+          name: "Permission Employee",
           status: UserStatus.ACTIVE
         }
       }),
@@ -63,18 +56,13 @@ async function main() {
           companyId: company.id,
           email: `manager-${suffix}@example.com`,
           passwordHash: "test",
-          name: "Balance Manager",
+          name: "Permission Manager",
           status: UserStatus.ACTIVE
         }
       })
     ]);
     const department = await prisma.department.create({
-      data: {
-        companyId: company.id,
-        managerId: manager.id,
-        name: "HR",
-        code: `HR-${suffix}`
-      }
+      data: { companyId: company.id, name: "Operations", code: `OPS-${suffix}`, managerId: manager.id }
     });
 
     await prisma.user.update({ where: { id: employee.id }, data: { departmentId: department.id } });
@@ -84,64 +72,61 @@ async function main() {
         { companyId: company.id, userId: manager.id, roleId: adminRole.id }
       ]
     });
+    await leaveRequestsService.updateSettings(company.id, { approvalMode: LeaveApprovalMode.MANAGER_ONLY });
 
-    const configured = await leaveRequestsService.updateSettings(company.id, { approvalMode: LeaveApprovalMode.MANAGER_ONLY });
-    assert.equal(configured.setting.approvalMode, LeaveApprovalMode.MANAGER_ONLY);
-    assert.equal(configured.workflow.steps.length, 1);
-
-    const leaveType = await leaveRequestsService.createType(company.id, {
-      name: "Annual Leave",
-      code: "ANNUAL",
-      annualAllowanceDays: 10
+    const permissionType = await leaveRequestsService.createType(company.id, {
+      name: "Permission",
+      code: "PERMISSION",
+      annualAllowanceDays: 3
     });
-    const openingBalance = await leaveBalancesService.upsert(company.id, manager.id, {
+    await leaveBalancesService.upsert(company.id, manager.id, {
       employeeId: employee.id,
-      leaveTypeId: leaveType.id,
+      leaveTypeId: permissionType.id,
       year: 2026,
-      allocatedDays: 10,
-      usedDays: 1
+      allocatedDays: 3,
+      usedDays: 0
     });
-    assert.equal(Number(openingBalance.remainingDays), 9);
 
-    const leave = await leaveRequestsService.create(company.id, employee.id, {
+    const permission = await leaveRequestsService.create(company.id, employee.id, {
       employeeId: employee.id,
-      leaveTypeId: leaveType.id,
-      startsAt: "2026-07-15T00:00:00.000Z",
-      endsAt: "2026-07-15T00:00:00.000Z",
-      durationType: LeaveDurationType.HALF_DAY,
-      halfDayPeriod: LeaveHalfDayPeriod.AFTERNOON,
-      reason: "Afternoon personal appointment"
+      leaveTypeId: permissionType.id,
+      requestType: LeaveRequestType.PERMISSION,
+      startsAt: "2026-07-20T10:00:00.000Z",
+      endsAt: "2026-07-20T12:00:00.000Z",
+      startTime: "2026-07-20T10:00:00.000Z",
+      endTime: "2026-07-20T12:00:00.000Z",
+      reason: "Doctor appointment"
     });
-    assert.equal(Number(leave.durationDays), 0.5);
-    assert.equal(leave.approvalActions.length, 1);
 
-    const approved = await leaveRequestsService.approve(company.id, manager.id, leave.id, { comment: "Approved" });
+    assert.equal(permission.requestType, LeaveRequestType.PERMISSION);
+    assert.equal(Number(permission.durationHours), 2);
+    assert.equal(Number(permission.durationDays), 0.25);
+    assert.ok(permission.requestNumber?.startsWith("PR-"));
+
+    await waitFor(async () => {
+      const audit = await prisma.auditLog.findFirst({ where: { companyId: company.id, action: "PERMISSION_REQUEST_SUBMITTED", entityId: permission.id } });
+      const notification = await prisma.notification.findFirst({
+        where: { companyId: company.id, userId: manager.id, type: NotificationType.LEAVE_SUBMITTED, entityId: permission.id }
+      });
+      return Boolean(audit && notification);
+    });
+
+    const approved = await leaveRequestsService.approve(company.id, manager.id, permission.id, { comment: "Approved" });
     assert.equal(approved.status, LeaveStatus.APPROVED);
 
+    await waitFor(async () => {
+      const audit = await prisma.auditLog.findFirst({ where: { companyId: company.id, action: "PERMISSION_REQUEST_APPROVED", entityId: permission.id } });
+      const search = await prisma.searchIndex.findFirst({ where: { companyId: company.id, entityType: EntityType.LEAVE_REQUEST, entityId: permission.id } });
+      return Boolean(audit && search?.title.includes(permission.requestNumber ?? "PR-"));
+    });
+
     const balance = await prisma.leaveBalance.findFirstOrThrow({
-      where: { companyId: company.id, employeeId: employee.id, leaveTypeId: leaveType.id, year: 2026 }
+      where: { companyId: company.id, employeeId: employee.id, leaveTypeId: permissionType.id, year: 2026 }
     });
-    assert.equal(Number(balance.usedDays), 1.5);
-    assert.equal(Number(balance.remainingDays), 8.5);
+    assert.equal(Number(balance.usedDays), 0.25);
+    assert.equal(Number(balance.remainingDays), 2.75);
 
-    const calendar = await leaveRequestsService.calendar(company.id, {
-      from: "2026-07-01T00:00:00.000Z",
-      to: "2026-07-31T23:59:59.000Z",
-      departmentId: department.id
-    });
-    assert.equal(calendar.length, 1);
-    assert.equal(calendar[0].id, leave.id);
-
-    const availability = await leaveRequestsService.availability(company.id, {
-      from: "2026-07-15T00:00:00.000Z",
-      to: "2026-07-15T23:59:59.000Z",
-      departmentId: department.id
-    });
-    assert.equal(availability.totalEmployees, 1);
-    assert.equal(availability.onLeaveCount, 1);
-    assert.equal(availability.availableCount, 0);
-
-    console.log("Leave enhancement assertions passed for settings, balances, half-day approvals, calendar, and availability.");
+    console.log("Hourly permission assertions passed for submission, approval, events, search, and balance deduction.");
   } finally {
     leaveEventsHandler.onModuleDestroy();
     await cleanup(company.id);
@@ -149,13 +134,21 @@ async function main() {
   }
 }
 
+async function waitFor(predicate: () => Promise<boolean>) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    if (await predicate()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error("Timed out waiting for permission side effect");
+}
+
 async function cleanup(companyId: string) {
   await prisma.notification.deleteMany({ where: { companyId } });
   await prisma.searchIndex.deleteMany({ where: { companyId } });
   await prisma.auditLog.deleteMany({ where: { companyId } });
   await prisma.activity.deleteMany({ where: { companyId } });
-  await prisma.attachment.deleteMany({ where: { companyId } });
-  await prisma.comment.deleteMany({ where: { companyId } });
   await prisma.approvalAction.deleteMany({ where: { companyId } });
   await prisma.approvalStep.deleteMany({ where: { companyId } });
   await prisma.approvalWorkflow.deleteMany({ where: { companyId } });

@@ -12,6 +12,7 @@ Current Git state:
 - Base branch `main` includes merged Phase 2B through `f902ce7 Update Phase 2B progress summary`.
 - Latest implementation commit: `Implement Phase 2B.1 leave enhancements`.
 - Latest login fix commit: `925603c Fix local login CORS origins`.
+- Latest alignment commit: `Align time-off enhancements with Phase 2B.1 scope`.
 - Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature/leave-enhancements`
 
 The repository now contains:
@@ -147,7 +148,13 @@ The repository now contains:
 - Added leave duration support:
   - full-day leave
   - half-day leave with morning/afternoon period
+  - explicit half-day AM and half-day PM API duration values
   - hourly permission requests
+- Added request metadata:
+  - `request_number`
+  - `request_type = LEAVE | PERMISSION`
+  - `start_time`
+  - `end_time`
 - Added `INFO_REQUESTED` leave status and manager/HR action:
   - `POST /api/v1/leave-requests/:id/request-info`
   - employee updates move the request back to pending review.
@@ -163,16 +170,22 @@ The repository now contains:
   - remaining days
   - year
 - Added leave balance API:
+  - `GET /api/v1/leave-balances/me`
   - `GET /api/v1/leave-balances`
   - `POST /api/v1/leave-balances`
+  - `PATCH /api/v1/leave-balances/:id`
 - Added leave settings API:
   - `GET /api/v1/leave-settings`
   - `PATCH /api/v1/leave-settings`
 - Added leave calendar and availability APIs:
   - `GET /api/v1/leave-requests/calendar`
   - `GET /api/v1/leave-requests/availability`
+  - `GET /api/v1/calendar/team`
+  - `GET /api/v1/calendar/department/:id`
 - Approval completion now deducts approved days from leave balance inside a database transaction.
-- Leave events now cover `LEAVE_INFO_REQUESTED` and continue to publish activity, audit, notification, and search updates through subscribers.
+- Leave events now cover `LEAVE_INFO_REQUESTED`, balance allocation/update, and permission submit/approve/reject events while continuing to publish activity, audit, notification, and search updates through subscribers.
+- Added dedicated `LeaveBalancesService`, `LeaveBalancesController`, and `LeaveCalendarController` to match the Phase 2B.1 service boundaries.
+- Search indexing now includes request number, employee name, leave type, reason, and department data.
 - Seed data now includes:
   - annual, sick, emergency, unpaid, half-day, permission, and work-from-home leave types
   - leave balances for the sample employee
@@ -189,7 +202,16 @@ The repository now contains:
   - department filter
   - duration controls in the request modal
   - request-more-information action
+- Frontend Dashboard now includes API-backed time-off widgets:
+  - Remaining Annual Leave
+  - Pending Approvals
+  - Team Away Today
+  - Upcoming Team Absences
 - Added `test:leave-enhancements` regression coverage.
+- Added focused Phase 2B.1 test scripts:
+  - `test:leave-balances`
+  - `test:calendar`
+  - `test:permissions`
 
 ## Recent Fixes
 
@@ -245,6 +267,9 @@ corepack pnpm test:tenant-isolation
 corepack pnpm test:tasks-core
 corepack pnpm test:leave-requests-core
 corepack pnpm test:leave-enhancements
+corepack pnpm test:leave-balances
+corepack pnpm test:calendar
+corepack pnpm test:permissions
 ```
 
 Additional local smoke checks completed:
@@ -258,9 +283,12 @@ Additional local smoke checks completed:
 - Authenticated `GET /api/v1/leave-types`, returning 7 seeded leave types.
 - Authenticated `GET /api/v1/leave-requests`, returning seeded pending and approved leave requests.
 - Authenticated `GET /api/v1/leave-balances?year=2026`, returning 3 seeded balances.
+- Authenticated `GET /api/v1/leave-balances/me?year=2026` as the seeded employee, returning 3 seeded balances.
 - Authenticated `GET /api/v1/leave-settings`, returning `MANAGER_HR`.
 - Authenticated `GET /api/v1/leave-requests/calendar`, returning 1 approved seeded leave request for July 2026.
 - Authenticated `GET /api/v1/leave-requests/availability`, returning 1 employee on leave and 2 available employees for July 15, 2026.
+- Authenticated `GET /api/v1/calendar/team`, returning 1 approved seeded leave request for July 2026.
+- Authenticated `GET /api/v1/calendar/department/:id`, returning 1 approved seeded HR leave request for July 2026.
 - Web route checks returned HTTP 200:
   - `/ar/tasks/list`
   - `/ar/tasks/kanban`
@@ -302,3 +330,4 @@ Recent completed commits:
 - `c811b71 Implement Phase 2B leave requests`
 - `Implement Phase 2B.1 leave enhancements`
 - `925603c Fix local login CORS origins`
+- `Align time-off enhancements with Phase 2B.1 scope`

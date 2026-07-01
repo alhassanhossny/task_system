@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { LeaveDurationType, LeaveHalfDayPeriod } from "@prisma/client";
+import { LeaveDurationType, LeaveHalfDayPeriod, LeaveRequestType } from "@prisma/client";
 import { Type } from "class-transformer";
 import { IsDateString, IsEnum, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from "class-validator";
 
@@ -19,6 +19,11 @@ export class UpdateLeaveRequestDto {
   @IsDateString()
   endsAt?: string;
 
+  @ApiPropertyOptional({ enum: LeaveRequestType })
+  @IsOptional()
+  @IsEnum(LeaveRequestType)
+  requestType?: LeaveRequestType;
+
   @ApiPropertyOptional({ enum: LeaveDurationType })
   @IsOptional()
   @IsEnum(LeaveDurationType)
@@ -36,6 +41,16 @@ export class UpdateLeaveRequestDto {
   @Min(1)
   @Max(8)
   durationHours?: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  startTime?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  endTime?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()

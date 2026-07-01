@@ -10,13 +10,11 @@ import { CreateLeaveAttachmentDto } from "./dto/create-leave-attachment.dto";
 import { CreateLeaveCommentDto } from "./dto/create-leave-comment.dto";
 import { CreateLeaveRequestDto } from "./dto/create-leave-request.dto";
 import { CreateLeaveTypeDto } from "./dto/create-leave-type.dto";
-import { LeaveBalanceQueryDto } from "./dto/leave-balance-query.dto";
 import { LeaveCalendarQueryDto } from "./dto/leave-calendar-query.dto";
 import { LeaveQueryDto } from "./dto/leave-query.dto";
 import { UpdateLeaveSettingsDto } from "./dto/update-leave-settings.dto";
 import { UpdateLeaveRequestDto } from "./dto/update-leave-request.dto";
 import { UpdateLeaveTypeDto } from "./dto/update-leave-type.dto";
-import { UpsertLeaveBalanceDto } from "./dto/upsert-leave-balance.dto";
 import { LeaveRequestsService } from "./leave-requests.service";
 
 @ApiBearerAuth()
@@ -53,18 +51,6 @@ export class LeaveRequestsController {
   @Patch("leave-settings")
   updateSettings(@TenantId() tenantId: string, @Body() dto: UpdateLeaveSettingsDto) {
     return this.leaveRequestsService.updateSettings(tenantId, dto);
-  }
-
-  @RequirePermissions(PERMISSIONS.leaveBalancesRead)
-  @Get("leave-balances")
-  findBalances(@TenantId() tenantId: string, @Query() query: LeaveBalanceQueryDto) {
-    return this.leaveRequestsService.findBalances(tenantId, query);
-  }
-
-  @RequirePermissions(PERMISSIONS.leaveBalancesWrite)
-  @Post("leave-balances")
-  upsertBalance(@TenantId() tenantId: string, @Body() dto: UpsertLeaveBalanceDto) {
-    return this.leaveRequestsService.upsertBalance(tenantId, dto);
   }
 
   @RequirePermissions(PERMISSIONS.leaveRequestsRead)

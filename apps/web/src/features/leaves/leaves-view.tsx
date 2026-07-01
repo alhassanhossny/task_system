@@ -303,7 +303,9 @@ export function LeavesView() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap mb-1.5">
                 <span className="font-semibold text-foreground text-sm">{leave.employee.name}</span>
+                {leave.requestNumber && <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">{leave.requestNumber}</span>}
                 <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{leave.leaveType}</span>
+                {leave.requestType === "PERMISSION" && <span className="text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded-full">{lang === "ar" ? "استئذان" : "Permission"}</span>}
               </div>
               <div className="flex items-center gap-4 flex-wrap">
                 <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -615,6 +617,7 @@ function LeaveRequestModal({
             startsAt: new Date(payload.startsAt).toISOString(),
             endsAt: new Date(payload.endsAt).toISOString(),
             employeeId: payload.employeeId || undefined,
+            requestType: payload.durationType === "HOURS" ? "PERMISSION" : "LEAVE",
             durationType: payload.durationType ?? "FULL_DAY",
             durationHours: payload.durationType === "HOURS" ? Number(payload.durationHours ?? 1) : undefined,
             halfDayPeriod: payload.durationType === "HALF_DAY" ? payload.halfDayPeriod ?? "MORNING" : undefined,
@@ -784,7 +787,9 @@ function LeaveDetailPanel({
         <div className="sticky top-0 bg-card/95 backdrop-blur border-b border-border px-5 py-4 flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-muted-foreground">{leave?.leaveType ?? ""}</p>
-            <h2 className="text-lg font-bold text-foreground line-clamp-1">{leave?.employee.name ?? (lang === "ar" ? "تفاصيل الإجازة" : "Leave details")}</h2>
+            <h2 className="text-lg font-bold text-foreground line-clamp-1">
+              {leave ? `${leave.requestNumber ?? leave.id.slice(0, 8)} · ${leave.employee.name}` : lang === "ar" ? "تفاصيل الإجازة" : "Leave details"}
+            </h2>
           </div>
           <button onClick={onClose} className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-muted transition-colors">
             <X className="w-4 h-4" />
@@ -805,6 +810,8 @@ function LeaveDetailPanel({
             <div className="grid grid-cols-2 gap-3">
               <Info label={lang === "ar" ? "البداية" : "Start"} value={formatDate(leave.startsAt, lang)} />
               <Info label={lang === "ar" ? "النهاية" : "End"} value={formatDate(leave.endsAt, lang)} />
+              <Info label={lang === "ar" ? "الرقم" : "Number"} value={leave.requestNumber ?? "-"} />
+              <Info label={lang === "ar" ? "النوع" : "Type"} value={leave.requestType === "PERMISSION" ? (lang === "ar" ? "استئذان" : "Permission") : lang === "ar" ? "إجازة" : "Leave"} />
               <Info label={lang === "ar" ? "المدة" : "Duration"} value={formatDuration(leave, lang)} />
               <Info label={lang === "ar" ? "القسم" : "Department"} value={leave.department?.name ?? "-"} />
               {leave.infoRequestedAt && <Info label={lang === "ar" ? "طلب معلومات" : "Info requested"} value={formatDate(leave.infoRequestedAt, lang)} />}

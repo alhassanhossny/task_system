@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsDateString, IsOptional, IsUUID } from "class-validator";
+import { IsDateString, IsIn, IsOptional, IsUUID } from "class-validator";
 
 export class LeaveCalendarQueryDto {
   @ApiProperty({ example: "2026-07-01T00:00:00.000Z" })
@@ -14,4 +14,19 @@ export class LeaveCalendarQueryDto {
   @IsOptional()
   @IsUUID()
   departmentId?: string;
+
+  @ApiPropertyOptional({ format: "uuid" })
+  @IsOptional()
+  @IsUUID()
+  leaveTypeId?: string;
+
+  @ApiPropertyOptional({ format: "uuid" })
+  @IsOptional()
+  @IsUUID()
+  employeeId?: string;
+
+  @ApiPropertyOptional({ enum: ["day", "week", "month"] })
+  @IsOptional()
+  @IsIn(["day", "week", "month"])
+  groupBy?: "day" | "week" | "month";
 }

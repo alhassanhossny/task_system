@@ -9,6 +9,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { SearchIndexer } from "../../search/search-indexer.service";
 import { StorageProvider } from "../../storage/storage-provider";
 import { LeaveEventsHandler } from "../events/leave-events.handler";
+import { LeaveBalancesService } from "../leave-balances.service";
 import { LeaveRequestsService } from "../leave-requests.service";
 
 const storage: StorageProvider = {
@@ -25,7 +26,8 @@ async function main() {
   const approvalWorkflows = new ApprovalWorkflowsService(prisma);
   const commentsService = new CommentsService(prisma);
   const attachmentsService = new AttachmentsService(prisma, storage);
-  const leaveRequestsService = new LeaveRequestsService(prisma, eventBus, approvalWorkflows, commentsService, attachmentsService);
+  const leaveBalancesService = new LeaveBalancesService(prisma, eventBus);
+  const leaveRequestsService = new LeaveRequestsService(prisma, eventBus, approvalWorkflows, commentsService, attachmentsService, leaveBalancesService);
   const leaveEventsHandler = new LeaveEventsHandler(eventBus, prisma, searchIndexer, approvalWorkflows);
 
   leaveEventsHandler.onModuleInit();
