@@ -24,6 +24,17 @@ The repository now contains:
 - `packages/config`: Roles, permissions, locales, and tenant constants.
 - `packages/shared`: Shared API response utilities.
 
+## Progress Update Rule
+
+After each completed development step, update this file before moving to the next step.
+
+Each update should include:
+
+- What changed.
+- Files, migrations, endpoints, or scripts added.
+- Validation run and whether it passed.
+- Any known follow-up or blocker.
+
 ## Implemented Foundation
 
 - Docker PostgreSQL and Redis setup.
