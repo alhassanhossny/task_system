@@ -34,11 +34,15 @@ export class TenantGuard implements CanActivate {
     const requestedCompanyId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
     const isSuperAdmin = user.roles.includes(SystemRole.SUPER_ADMIN);
 
-    if (requestedCompanyId && requestedCompanyId !== user.companyId && !isSuperAdmin) {
+    if (user.actingCompanyId && requestedCompanyId && requestedCompanyId !== user.actingCompanyId) {
+      throw new ForbiddenException("Cannot override an active company switch session");
+    }
+
+    if (!user.actingCompanyId && requestedCompanyId && requestedCompanyId !== user.companyId && !isSuperAdmin) {
       throw new ForbiddenException("Cannot access another company tenant");
     }
 
-    const effectiveCompanyId = requestedCompanyId && isSuperAdmin ? requestedCompanyId : user.companyId;
+    const effectiveCompanyId = user.actingCompanyId ?? (requestedCompanyId && isSuperAdmin ? requestedCompanyId : user.companyId);
     request.companyId = effectiveCompanyId;
 
     const platformPermissions = this.reflector.getAllAndOverride<string[]>(PLATFORM_PERMISSIONS_KEY, [

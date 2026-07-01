@@ -23,7 +23,7 @@ const prisma = new PrismaService();
 async function main() {
   const suffix = randomUUID().slice(0, 8);
   const eventBus = new DomainEventBus();
-  const platformService = new PlatformService(prisma, eventBus);
+  const platformService = new PlatformService(prisma, eventBus, { signAsync: async () => "switch-token" } as unknown as JwtService);
   const events: DomainEvent[] = [];
   const eventSubscription = eventBus.events$.subscribe((event) => events.push(event));
 

@@ -7,6 +7,13 @@ import { createHash, randomUUID } from "node:crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { LoginDto } from "./dto/login.dto";
 
+interface SwitchTokenContext {
+  platformAdmin?: boolean;
+  switchSessionId?: string;
+  actingCompanyId?: string;
+  originalCompanyId?: string | null;
+}
+
 type UserWithAccess = User & {
   company: {
     deletedAt: Date | null;
@@ -110,7 +117,7 @@ export class AuthService {
     return this.serializeUser(user);
   }
 
-  async validateUser(userId: string) {
+  async validateUser(userId: string, switchContext?: SwitchTokenContext) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: this.accessInclude()
@@ -120,7 +127,61 @@ export class AuthService {
       throw new UnauthorizedException("User is not active");
     }
 
-    return this.serializeUser(user);
+    const serialized = this.serializeUser(user);
+
+    if (switchContext?.actingCompanyId || switchContext?.switchSessionId) {
+      if (!switchContext.actingCompanyId || !switchContext.switchSessionId || !switchContext.platformAdmin) {
+        throw new UnauthorizedException("Invalid switch session token");
+      }
+
+      const session = await this.prisma.companySwitchSession.findFirst({
+        where: {
+          id: switchContext.switchSessionId,
+          actorUserId: userId,
+          companyId: switchContext.actingCompanyId,
+          status: "ACTIVE",
+          endedAt: null,
+          revokedAt: null,
+          deletedAt: null
+        },
+        include: {
+          targetCompany: {
+            select: {
+              id: true,
+              deletedAt: true,
+              suspendedAt: true
+            }
+          }
+        }
+      });
+
+      if (!session) {
+        throw new UnauthorizedException("Switch session is not active");
+      }
+
+      if (session.expiresAt <= new Date()) {
+        await this.prisma.companySwitchSession.updateMany({
+          where: { id: session.id, status: "ACTIVE" },
+          data: { status: "EXPIRED" }
+        });
+        throw new UnauthorizedException("Switch session expired");
+      }
+
+      if (session.targetCompany.deletedAt || session.targetCompany.suspendedAt) {
+        throw new UnauthorizedException("Target company tenant is not available");
+      }
+
+      return {
+        ...serialized,
+        companyId: switchContext.actingCompanyId,
+        originalCompanyId: switchContext.originalCompanyId ?? user.companyId,
+        actingCompanyId: switchContext.actingCompanyId,
+        switchSessionId: switchContext.switchSessionId,
+        platformAdmin: true
+      };
+    }
+
+    return serialized;
   }
 
   private async issueSession(user: UserWithAccess) {

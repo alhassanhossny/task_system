@@ -16,7 +16,7 @@ Current Git state:
 - Latest Phase 2B.2 work: `Implement Phase 2B.2 manager hierarchy and team management`.
 - Latest Phase 2C work: `Implement Phase 2C global search and productivity layer`.
 - Latest Phase 3 work: `Implement Phase 3 email center`.
-- Latest Phase 4 work: `Implement Phase 4 subscription management APIs`.
+- Latest Phase 4 work: `Implement Phase 4 company switching service`.
 - Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature-super-admin-portal`
 
 The repository now contains:
@@ -474,7 +474,7 @@ Follow-up work:
 
 ## In Progress Phase 4 Super Admin SaaS Portal
 
-Current checkpoint: Step 5 Subscription and billing management APIs completed.
+Current checkpoint: Step 6 Company Switching Service completed.
 
 Completed checkpoints:
 
@@ -771,9 +771,90 @@ Completed Step 5 checkpoints:
   - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-management` passed.
   - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-subscriptions` passed after rerunning outside the sandbox due to the known `tsx` IPC pipe restriction.
 
+- Step 6 Company Switching Service was completed as the Super Admin tenant impersonation milestone.
+
+Completed Step 6 checkpoints:
+
+- Implemented Prisma-backed tenant switch APIs:
+  - `POST /api/v1/platform/switch-company`
+  - `GET /api/v1/platform/switch-sessions`
+  - `POST /api/v1/platform/switch-company/:sessionId/end`
+- Added switch session query DTO with filters for:
+  - status
+  - company
+  - actor user
+  - pagination
+- Added switch session creation with:
+  - target company validation
+  - suspended company rejection
+  - duplicate active session rejection for the same admin/company pair
+  - default 8-hour expiration
+  - optional explicit future expiration
+  - metadata storage
+- Added impersonation JWT generation with:
+  - `platformAdmin`
+  - `switchSessionId`
+  - `actingCompanyId`
+  - `originalCompanyId`
+  - platform permissions snapshot
+  - token expiry aligned to switch session expiry
+- Updated JWT validation so switch tokens require:
+  - active switch session
+  - matching actor user
+  - matching acting company
+  - non-expired session
+  - non-ended and non-revoked session
+  - non-suspended target company
+- Updated tenant resolution so `actingCompanyId` takes precedence over the original user company.
+- Prevented request header tenant override while a switch session is active.
+- Added switch session ending:
+  - sets `status = ENDED`
+  - sets `ended_at`
+  - rejects already ended/expired/revoked sessions
+- Added automatic active-session expiration during switch reads and validation.
+- Added audit logging for:
+  - `COMPANY_SWITCH_STARTED`
+  - `COMPANY_SWITCH_ENDED`
+- Published domain events for:
+  - `PLATFORM_SWITCH_CREATED`
+  - `PLATFORM_SWITCH_ENDED`
+- Added switch endpoint permission checks using:
+  - `tenant_switch:execute`
+  alongside platform-level access checks.
+- Kept this milestone switching-only:
+  - no frontend company switcher implementation
+  - no analytics aggregation
+  - no usage snapshot generation
+  - no platform settings persistence
+  - no search indexing
+  - no notifications
+- Added regression script:
+  - `test:platform-company-switching`
+- Added regression coverage for:
+  - permission enforcement
+  - switch session creation
+  - token payload generation
+  - tenant resolution through `actingCompanyId`
+  - session listing
+  - session ending
+  - expiration handling
+  - suspended company rejection
+  - duplicate active session rejection
+  - tenant isolation preservation
+  - audit creation
+  - domain event publishing
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tenant-isolation` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-management` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-subscriptions` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-switching` passed after rerunning outside the sandbox due to the known `tsx` IPC pipe restriction.
+
 Next checkpoint:
 
-- Step 6 Company switching service.
+- Step 7 Platform analytics and usage metrics.
 
 ## Recent Fixes
 
@@ -907,3 +988,4 @@ Recent completed commits:
 - `Implement Phase 4 platform backend skeleton`
 - `Implement Phase 4 company management APIs`
 - `Implement Phase 4 subscription management APIs`
+- `Implement Phase 4 company switching service`

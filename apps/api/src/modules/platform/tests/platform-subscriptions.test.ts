@@ -1,4 +1,5 @@
 import { BillingInterval, CompanyPlan, CompanyStatus, SubscriptionInvoiceStatus, SubscriptionStatus, UserStatus } from "@prisma/client";
+import { JwtService } from "@nestjs/jwt";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { PERMISSIONS } from "../../../common/constants";
@@ -13,7 +14,7 @@ const prisma = new PrismaService();
 async function main() {
   const suffix = randomUUID().slice(0, 8);
   const eventBus = new DomainEventBus();
-  const platformService = new PlatformService(prisma, eventBus);
+  const platformService = new PlatformService(prisma, eventBus, { signAsync: async () => "switch-token" } as unknown as JwtService);
   const events: DomainEvent[] = [];
   const eventSubscription = eventBus.events$.subscribe((event) => events.push(event));
   const [platformCompany, companyA, companyB] = await Promise.all([

@@ -19,6 +19,7 @@
     "test:email-center": "tsx src/emails/tests/email-center.test.ts",
     "test:platform-company-management": "tsx src/modules/platform/tests/platform-company-management.test.ts",
     "test:platform-subscriptions": "tsx src/modules/platform/tests/platform-subscriptions.test.ts",
+    "test:platform-company-switching": "tsx src/modules/platform/tests/platform-company-switching.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
     "format": "prettier --write \"src/**/*.ts\" \"../../prisma/**/*.ts\"",

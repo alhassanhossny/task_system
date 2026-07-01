@@ -12,6 +12,7 @@ import { GetCompanyDto } from "./dto/get-company.dto";
 import { ListCompaniesDto } from "./dto/list-companies.dto";
 import { ListPlansDto } from "./dto/list-plans.dto";
 import { ListSubscriptionsDto } from "./dto/list-subscriptions.dto";
+import { ListSwitchSessionsDto } from "./dto/list-switch-sessions.dto";
 import { PlatformAnalyticsQueryDto } from "./dto/platform-analytics-query.dto";
 import { UpdateCompanyStatusDto } from "./dto/update-company-status.dto";
 import { UpdatePlatformSettingDto } from "./dto/update-platform-setting.dto";
@@ -129,16 +130,26 @@ export class PlatformController {
   }
 
   @PlatformPermission(PERMISSIONS.platformManage)
-  @ApiOperation({ summary: "Create a tenant switch session placeholder" })
+  @RequirePermissions(PERMISSIONS.tenantSwitchExecute)
+  @ApiOperation({ summary: "End a tenant switch session" })
+  @Post("switch-company/:sessionId/end")
+  endSwitchSession(@CurrentUser() user: RequestUser, @Param("sessionId") sessionId: string) {
+    return this.platformService.endSwitchSession(user.id, sessionId);
+  }
+
+  @PlatformPermission(PERMISSIONS.platformManage)
+  @RequirePermissions(PERMISSIONS.tenantSwitchExecute)
+  @ApiOperation({ summary: "Create a tenant switch session" })
   @Post("switch-company")
-  createSwitchSession(@Body() dto: CreateTenantSwitchDto) {
-    return this.platformService.createSwitchSession(dto);
+  createSwitchSession(@CurrentUser() user: RequestUser, @Body() dto: CreateTenantSwitchDto) {
+    return this.platformService.createSwitchSession(user, dto);
   }
 
   @PlatformPermission(PERMISSIONS.platformRead)
-  @ApiOperation({ summary: "List tenant switch sessions placeholder" })
+  @RequirePermissions(PERMISSIONS.tenantSwitchExecute)
+  @ApiOperation({ summary: "List tenant switch sessions" })
   @Get("switch-sessions")
-  listSwitchSessions() {
-    return this.platformService.listSwitchSessions();
+  listSwitchSessions(@Query() query: ListSwitchSessionsDto) {
+    return this.platformService.listSwitchSessions(query);
   }
 }

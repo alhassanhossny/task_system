@@ -1,5 +1,7 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { BillingInterval, CompanyPlan, CompanyStatus, EntityType, Prisma, SubscriptionStatus } from "@prisma/client";
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import { BillingInterval, CompanyPlan, CompanyStatus, CompanySwitchStatus, EntityType, Prisma, SubscriptionStatus } from "@prisma/client";
+import { RequestUser } from "../../common/types/request-user";
 import { DomainEventBus } from "../../domain-events/domain-event-bus.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CreateSubscriptionPlanDto } from "./dto/create-subscription-plan.dto";
@@ -8,6 +10,7 @@ import { CreateTenantSwitchDto } from "./dto/create-tenant-switch.dto";
 import { ListCompaniesDto } from "./dto/list-companies.dto";
 import { ListPlansDto } from "./dto/list-plans.dto";
 import { ListSubscriptionsDto } from "./dto/list-subscriptions.dto";
+import { ListSwitchSessionsDto } from "./dto/list-switch-sessions.dto";
 import { PlatformAnalyticsQueryDto } from "./dto/platform-analytics-query.dto";
 import { UpdateCompanyStatusDto } from "./dto/update-company-status.dto";
 import { UpdatePlatformSettingDto } from "./dto/update-platform-setting.dto";
@@ -83,7 +86,8 @@ type CompanyDetail = {
 export class PlatformService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly eventBus: DomainEventBus
+    private readonly eventBus: DomainEventBus,
+    private readonly jwt: JwtService
   ) {}
 
   async listCompanies(query: ListCompaniesDto): Promise<{
@@ -440,12 +444,133 @@ export class PlatformService {
     return this.action(id, dto);
   }
 
-  createSwitchSession(dto: CreateTenantSwitchDto): PlatformActionResponse {
-    return this.action("pending-switch-session-id", dto);
+  async createSwitchSession(actor: RequestUser, dto: CreateTenantSwitchDto) {
+    const targetCompany = await this.findCompany(dto.companyId);
+
+    if (targetCompany.suspendedAt || targetCompany.status === CompanyStatus.SUSPENDED) {
+      throw new ConflictException("Cannot switch into a suspended company");
+    }
+
+    await this.expireSwitchSessions();
+
+    const actorCompanyId = actor.originalCompanyId ?? actor.companyId;
+    const overlapping = await this.prisma.companySwitchSession.findFirst({
+      where: {
+        companyId: dto.companyId,
+        actorUserId: actor.id,
+        status: CompanySwitchStatus.ACTIVE,
+        endedAt: null,
+        revokedAt: null,
+        deletedAt: null
+      },
+      select: { id: true }
+    });
+
+    if (overlapping) {
+      throw new ConflictException("An active switch session already exists for this admin and company");
+    }
+
+    const expiresAt = this.switchExpiresAt(dto.expiresAt);
+    const session = await this.prisma.companySwitchSession.create({
+      data: {
+        companyId: dto.companyId,
+        actorCompanyId,
+        actorUserId: actor.id,
+        status: CompanySwitchStatus.ACTIVE,
+        reason: dto.reason,
+        expiresAt,
+        metadata: this.jsonObject(dto.metadata)
+      },
+      include: this.switchSessionInclude()
+    });
+
+    await this.recordSwitchAction(dto.companyId, actor.id, "COMPANY_SWITCH_STARTED", PLATFORM_EVENTS.switchCreated, session.id, {
+      reason: dto.reason ?? null,
+      actorCompanyId,
+      expiresAt: expiresAt.toISOString()
+    });
+
+    const token = await this.signSwitchToken(actor, session.id, dto.companyId, actorCompanyId, expiresAt);
+
+    return {
+      sessionId: session.id,
+      companyId: session.companyId,
+      token,
+      expiresAt: session.expiresAt,
+      status: session.status,
+      session
+    };
   }
 
-  listSwitchSessions(): PlatformListResponse<{ id: string; companyId: string; status: string }> {
-    return this.list([]);
+  async listSwitchSessions(query: ListSwitchSessionsDto): Promise<{
+    data: Array<Prisma.CompanySwitchSessionGetPayload<{ include: ReturnType<PlatformService["switchSessionInclude"]> }>>;
+    meta: { page: number; limit: number; total: number; query: ListSwitchSessionsDto };
+  }> {
+    await this.expireSwitchSessions();
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 25;
+    const where = {
+      deletedAt: null,
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.companyId ? { companyId: query.companyId } : {}),
+      ...(query.actorUserId ? { actorUserId: query.actorUserId } : {})
+    };
+    const [total, sessions] = await Promise.all([
+      this.prisma.companySwitchSession.count({ where }),
+      this.prisma.companySwitchSession.findMany({
+        where,
+        orderBy: { startedAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+        include: this.switchSessionInclude()
+      })
+    ]);
+
+    return {
+      data: sessions,
+      meta: {
+        page,
+        limit,
+        total,
+        query
+      }
+    };
+  }
+
+  async endSwitchSession(actorId: string, sessionId: string) {
+    await this.expireSwitchSessions();
+    const existing = await this.prisma.companySwitchSession.findFirst({
+      where: {
+        id: sessionId,
+        actorUserId: actorId,
+        deletedAt: null
+      },
+      include: this.switchSessionInclude()
+    });
+
+    if (!existing) {
+      throw new NotFoundException("Switch session not found");
+    }
+
+    if (existing.status !== CompanySwitchStatus.ACTIVE || existing.endedAt || existing.revokedAt) {
+      throw new ConflictException("Switch session is not active");
+    }
+
+    const endedAt = new Date();
+    const session = await this.prisma.companySwitchSession.update({
+      where: { id: sessionId },
+      data: {
+        status: CompanySwitchStatus.ENDED,
+        endedAt
+      },
+      include: this.switchSessionInclude()
+    });
+
+    await this.recordSwitchAction(session.companyId, actorId, "COMPANY_SWITCH_ENDED", PLATFORM_EVENTS.switchEnded, session.id, {
+      endedAt: endedAt.toISOString()
+    });
+
+    return session;
   }
 
   private list<T, Q = unknown>(data: T[], query?: Q): PlatformListResponse<T, Q> {
@@ -552,6 +677,24 @@ export class PlatformService {
     return plan;
   }
 
+  private switchSessionInclude() {
+    return {
+      targetCompany: {
+        select: this.companySelect()
+      },
+      actorCompany: {
+        select: this.companySelect()
+      },
+      actorUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
+    } as const;
+  }
+
   private async recordCompanyAction(
     companyId: string,
     actorId: string,
@@ -608,6 +751,34 @@ export class PlatformService {
     });
   }
 
+  private async recordSwitchAction(
+    companyId: string,
+    actorId: string,
+    action: "COMPANY_SWITCH_STARTED" | "COMPANY_SWITCH_ENDED",
+    eventName: string,
+    sessionId: string,
+    metadata: Prisma.InputJsonObject
+  ) {
+    await this.prisma.auditLog.create({
+      data: {
+        companyId,
+        actorId,
+        action,
+        entityType: "COMPANY_SWITCH_SESSION",
+        entityId: sessionId,
+        metadata
+      }
+    });
+
+    this.eventBus.publish({
+      name: eventName,
+      companyId,
+      actorId,
+      entityId: sessionId,
+      payload: metadata
+    });
+  }
+
   private normalizePlanCode(code: string) {
     return code.trim().toLowerCase();
   }
@@ -622,5 +793,44 @@ export class PlatformService {
 
   private dateOrNow(value: string | undefined) {
     return this.optionalDate(value) ?? new Date();
+  }
+
+  private switchExpiresAt(value: string | undefined) {
+    const expiresAt = value ? new Date(value) : new Date(Date.now() + 8 * 60 * 60 * 1000);
+
+    if (Number.isNaN(expiresAt.getTime()) || expiresAt <= new Date()) {
+      throw new BadRequestException("Switch session expiration must be in the future");
+    }
+
+    return expiresAt;
+  }
+
+  private async expireSwitchSessions() {
+    await this.prisma.companySwitchSession.updateMany({
+      where: {
+        status: CompanySwitchStatus.ACTIVE,
+        expiresAt: { lt: new Date() },
+        endedAt: null,
+        revokedAt: null,
+        deletedAt: null
+      },
+      data: { status: CompanySwitchStatus.EXPIRED }
+    });
+  }
+
+  private async signSwitchToken(actor: RequestUser, sessionId: string, actingCompanyId: string, originalCompanyId: string, expiresAt: Date) {
+    const secondsUntilExpiry = Math.max(1, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
+
+    return this.jwt.signAsync(
+      {
+        sub: actor.id,
+        platformAdmin: true,
+        switchSessionId: sessionId,
+        actingCompanyId,
+        originalCompanyId,
+        permissions: actor.permissions
+      },
+      { expiresIn: secondsUntilExpiry }
+    );
   }
 }
