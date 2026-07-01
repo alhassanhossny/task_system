@@ -1,10 +1,12 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
-import { CompanyPlan, CompanyStatus, EntityType, Prisma, SubscriptionStatus } from "@prisma/client";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { BillingInterval, CompanyPlan, CompanyStatus, EntityType, Prisma, SubscriptionStatus } from "@prisma/client";
 import { DomainEventBus } from "../../domain-events/domain-event-bus.service";
 import { PrismaService } from "../../prisma/prisma.service";
+import { CreateSubscriptionPlanDto } from "./dto/create-subscription-plan.dto";
 import { CreateSubscriptionDto } from "./dto/create-subscription.dto";
 import { CreateTenantSwitchDto } from "./dto/create-tenant-switch.dto";
 import { ListCompaniesDto } from "./dto/list-companies.dto";
+import { ListPlansDto } from "./dto/list-plans.dto";
 import { ListSubscriptionsDto } from "./dto/list-subscriptions.dto";
 import { PlatformAnalyticsQueryDto } from "./dto/platform-analytics-query.dto";
 import { UpdateCompanyStatusDto } from "./dto/update-company-status.dto";
@@ -75,13 +77,6 @@ type CompanyDetail = {
   tasksCount: number;
   storageUsage: number;
   lastActivityAt: Date | null;
-};
-
-type PlaceholderSubscription = {
-  id: string;
-  companyId: string;
-  planId: string;
-  status: SubscriptionStatus;
 };
 
 @Injectable()
@@ -209,20 +204,214 @@ export class PlatformService {
     return this.serializeCompany(company);
   }
 
-  listPlans(): PlatformListResponse<{ id: string; code: string; name: string }> {
-    return this.list([]);
+  async listPlans(query: ListPlansDto): Promise<{
+    data: Prisma.SubscriptionPlanGetPayload<Record<string, never>>[];
+    meta: { page: number; limit: number; total: number; query: ListPlansDto };
+  }> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 25;
+    const where = {
+      deletedAt: null,
+      ...(query.tier ? { tier: query.tier } : {}),
+      ...(typeof query.isActive === "boolean" ? { isActive: query.isActive } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { code: { contains: query.search, mode: "insensitive" as const } },
+              { name: { contains: query.search, mode: "insensitive" as const } }
+            ]
+          }
+        : {})
+    };
+
+    const [total, plans] = await Promise.all([
+      this.prisma.subscriptionPlan.count({ where }),
+      this.prisma.subscriptionPlan.findMany({
+        where,
+        orderBy: [{ tier: "asc" }, { monthlyPrice: "asc" }, { createdAt: "desc" }],
+        skip: (page - 1) * limit,
+        take: limit
+      })
+    ]);
+
+    return {
+      data: plans,
+      meta: {
+        page,
+        limit,
+        total,
+        query
+      }
+    };
   }
 
-  listSubscriptions(query: ListSubscriptionsDto): PlatformListResponse<PlaceholderSubscription, ListSubscriptionsDto> {
-    return this.list([], query);
+  async createPlan(actorCompanyId: string, actorId: string, dto: CreateSubscriptionPlanDto) {
+    const code = this.normalizePlanCode(dto.code);
+    const existing = await this.prisma.subscriptionPlan.findFirst({
+      where: { code, deletedAt: null },
+      select: { id: true }
+    });
+
+    if (existing) {
+      throw new ConflictException("Subscription plan code already exists");
+    }
+
+    const plan = await this.prisma.subscriptionPlan.create({
+      data: {
+        code,
+        name: dto.name,
+        description: dto.description,
+        tier: dto.tier ?? CompanyPlan.STARTER,
+        monthlyPrice: dto.monthlyPrice ?? 0,
+        yearlyPrice: dto.yearlyPrice ?? 0,
+        currency: dto.currency?.toUpperCase() ?? "USD",
+        maxUsers: dto.maxUsers,
+        maxStorageMb: dto.maxStorageMb,
+        maxCompanies: dto.maxCompanies,
+        features: this.jsonObject(dto.features),
+        isActive: dto.isActive ?? true
+      }
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        companyId: actorCompanyId,
+        actorId,
+        action: "SUBSCRIPTION_PLAN_CREATED",
+        entityType: "SUBSCRIPTION_PLAN",
+        entityId: plan.id,
+        metadata: {
+          code: plan.code,
+          tier: plan.tier
+        }
+      }
+    });
+
+    return plan;
   }
 
-  createSubscription(dto: CreateSubscriptionDto): PlatformActionResponse {
-    return this.action("pending-subscription-id", dto);
+  async listSubscriptions(query: ListSubscriptionsDto): Promise<{
+    data: Array<Prisma.CompanySubscriptionGetPayload<{ include: ReturnType<PlatformService["subscriptionInclude"]> }>>;
+    meta: { page: number; limit: number; total: number; query: ListSubscriptionsDto };
+  }> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 25;
+    const where = {
+      deletedAt: null,
+      ...(query.companyId ? { companyId: query.companyId } : {}),
+      ...(query.planId ? { planId: query.planId } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.billingInterval ? { billingInterval: query.billingInterval } : {})
+    };
+
+    const [total, subscriptions] = await Promise.all([
+      this.prisma.companySubscription.count({ where }),
+      this.prisma.companySubscription.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+        include: this.subscriptionInclude()
+      })
+    ]);
+
+    return {
+      data: subscriptions,
+      meta: {
+        page,
+        limit,
+        total,
+        query
+      }
+    };
   }
 
-  updateSubscription(id: string, dto: UpdateSubscriptionDto): PlatformActionResponse {
-    return this.action(id, dto);
+  async createSubscription(actorId: string, dto: CreateSubscriptionDto) {
+    await this.findCompany(dto.companyId);
+    const plan = await this.findActivePlan(dto.planId);
+    const startsAt = this.dateOrNow(dto.startsAt);
+    const trialEndsAt = this.optionalDate(dto.trialEndsAt);
+    const currentPeriodEnd = this.optionalDate(dto.currentPeriodEnd);
+    const status = dto.status ?? SubscriptionStatus.TRIALING;
+    const billingInterval = dto.billingInterval ?? BillingInterval.MONTHLY;
+
+    const subscription = await this.prisma.companySubscription.create({
+      data: {
+        companyId: dto.companyId,
+        planId: plan.id,
+        status,
+        billingInterval,
+        seats: dto.seats ?? 1,
+        startsAt,
+        trialEndsAt,
+        currentPeriodStart: startsAt,
+        currentPeriodEnd,
+        metadata: this.jsonObject(dto.metadata)
+      },
+      include: this.subscriptionInclude()
+    });
+
+    await this.prisma.company.update({
+      where: { id: dto.companyId },
+      data: {
+        plan: plan.tier,
+        ...(trialEndsAt ? { trialEndsAt } : {})
+      }
+    });
+
+    await this.recordSubscriptionAction(dto.companyId, actorId, "SUBSCRIPTION_CREATED", PLATFORM_EVENTS.subscriptionCreated, subscription.id, {
+      planId: plan.id,
+      status,
+      billingInterval,
+      seats: subscription.seats
+    });
+
+    return subscription;
+  }
+
+  async updateSubscription(id: string, actorId: string, dto: UpdateSubscriptionDto) {
+    const existing = await this.prisma.companySubscription.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, companyId: true }
+    });
+
+    if (!existing) {
+      throw new NotFoundException("Subscription not found");
+    }
+
+    const plan = dto.planId ? await this.findActivePlan(dto.planId) : null;
+    const data: Prisma.CompanySubscriptionUncheckedUpdateInput = {
+      ...(plan ? { planId: plan.id } : {}),
+      ...(dto.status ? { status: dto.status } : {}),
+      ...(dto.billingInterval ? { billingInterval: dto.billingInterval } : {}),
+      ...(dto.seats ? { seats: dto.seats } : {}),
+      ...(dto.currentPeriodEnd ? { currentPeriodEnd: this.optionalDate(dto.currentPeriodEnd) } : {}),
+      ...(dto.cancelledAt ? { cancelledAt: this.optionalDate(dto.cancelledAt) } : {}),
+      ...(dto.status === SubscriptionStatus.CANCELLED && !dto.cancelledAt ? { cancelledAt: new Date() } : {}),
+      ...(dto.metadata ? { metadata: this.jsonObject(dto.metadata) } : {})
+    };
+
+    const subscription = await this.prisma.companySubscription.update({
+      where: { id },
+      data,
+      include: this.subscriptionInclude()
+    });
+
+    if (plan) {
+      await this.prisma.company.update({
+        where: { id: existing.companyId },
+        data: { plan: plan.tier }
+      });
+    }
+
+    await this.recordSubscriptionAction(existing.companyId, actorId, "SUBSCRIPTION_UPDATED", PLATFORM_EVENTS.subscriptionUpdated, subscription.id, {
+      planId: subscription.planId,
+      status: subscription.status,
+      billingInterval: subscription.billingInterval,
+      seats: subscription.seats
+    });
+
+    return subscription;
   }
 
   getPlatformOverview(query: PlatformAnalyticsQueryDto): PlatformItemResponse<{
@@ -337,6 +526,32 @@ export class PlatformService {
     });
   }
 
+  private subscriptionInclude() {
+    return {
+      company: {
+        select: this.companySelect()
+      },
+      plan: true,
+      _count: {
+        select: {
+          invoices: true
+        }
+      }
+    } as const;
+  }
+
+  private async findActivePlan(id: string) {
+    const plan = await this.prisma.subscriptionPlan.findFirst({
+      where: { id, isActive: true, deletedAt: null }
+    });
+
+    if (!plan) {
+      throw new NotFoundException("Subscription plan not found");
+    }
+
+    return plan;
+  }
+
   private async recordCompanyAction(
     companyId: string,
     actorId: string,
@@ -363,5 +578,49 @@ export class PlatformService {
       entityId: companyId,
       payload: metadata
     });
+  }
+
+  private async recordSubscriptionAction(
+    companyId: string,
+    actorId: string,
+    action: "SUBSCRIPTION_CREATED" | "SUBSCRIPTION_UPDATED",
+    eventName: string,
+    subscriptionId: string,
+    metadata: Prisma.InputJsonObject
+  ) {
+    await this.prisma.auditLog.create({
+      data: {
+        companyId,
+        actorId,
+        action,
+        entityType: "SUBSCRIPTION",
+        entityId: subscriptionId,
+        metadata
+      }
+    });
+
+    this.eventBus.publish({
+      name: eventName,
+      companyId,
+      actorId,
+      entityId: subscriptionId,
+      payload: metadata
+    });
+  }
+
+  private normalizePlanCode(code: string) {
+    return code.trim().toLowerCase();
+  }
+
+  private jsonObject(value: Record<string, unknown> | undefined): Prisma.InputJsonObject {
+    return (value ?? {}) as Prisma.InputJsonObject;
+  }
+
+  private optionalDate(value: string | undefined) {
+    return value ? new Date(value) : undefined;
+  }
+
+  private dateOrNow(value: string | undefined) {
+    return this.optionalDate(value) ?? new Date();
   }
 }

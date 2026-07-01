@@ -2,12 +2,15 @@ import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from "@ne
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from "@nestjs/swagger";
 import { PERMISSIONS } from "../../common/constants";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { RequirePermissions } from "../../common/decorators/permissions.decorator";
 import { RequestUser } from "../../common/types/request-user";
 import { PlatformPermission } from "./decorators/platform-permission.decorator";
+import { CreateSubscriptionPlanDto } from "./dto/create-subscription-plan.dto";
 import { CreateSubscriptionDto } from "./dto/create-subscription.dto";
 import { CreateTenantSwitchDto } from "./dto/create-tenant-switch.dto";
 import { GetCompanyDto } from "./dto/get-company.dto";
 import { ListCompaniesDto } from "./dto/list-companies.dto";
+import { ListPlansDto } from "./dto/list-plans.dto";
 import { ListSubscriptionsDto } from "./dto/list-subscriptions.dto";
 import { PlatformAnalyticsQueryDto } from "./dto/platform-analytics-query.dto";
 import { UpdateCompanyStatusDto } from "./dto/update-company-status.dto";
@@ -56,6 +59,7 @@ export class PlatformController {
   }
 
   @PlatformPermission(PERMISSIONS.platformRead)
+  @RequirePermissions(PERMISSIONS.subscriptionsRead)
   @ApiOperation({ summary: "List company subscriptions" })
   @Get("subscriptions")
   listSubscriptions(@Query() query: ListSubscriptionsDto) {
@@ -63,25 +67,36 @@ export class PlatformController {
   }
 
   @PlatformPermission(PERMISSIONS.platformRead)
+  @RequirePermissions(PERMISSIONS.subscriptionsRead)
   @ApiOperation({ summary: "List subscription plans" })
   @Get("plans")
-  listPlans() {
-    return this.platformService.listPlans();
+  listPlans(@Query() query: ListPlansDto) {
+    return this.platformService.listPlans(query);
   }
 
   @PlatformPermission(PERMISSIONS.platformManage)
-  @ApiOperation({ summary: "Create a company subscription placeholder" })
+  @RequirePermissions(PERMISSIONS.subscriptionsManage)
+  @ApiOperation({ summary: "Create a subscription plan" })
+  @Post("plans")
+  createPlan(@CurrentUser() user: RequestUser, @Body() dto: CreateSubscriptionPlanDto) {
+    return this.platformService.createPlan(user.companyId, user.id, dto);
+  }
+
+  @PlatformPermission(PERMISSIONS.platformManage)
+  @RequirePermissions(PERMISSIONS.subscriptionsManage)
+  @ApiOperation({ summary: "Create a company subscription" })
   @Post("subscriptions")
-  createSubscription(@Body() dto: CreateSubscriptionDto) {
-    return this.platformService.createSubscription(dto);
+  createSubscription(@CurrentUser() user: RequestUser, @Body() dto: CreateSubscriptionDto) {
+    return this.platformService.createSubscription(user.id, dto);
   }
 
   @PlatformPermission(PERMISSIONS.platformManage)
-  @ApiOperation({ summary: "Update a company subscription placeholder" })
+  @RequirePermissions(PERMISSIONS.subscriptionsManage)
+  @ApiOperation({ summary: "Update a company subscription" })
   @ApiParam({ name: "id", format: "uuid" })
   @Patch("subscriptions/:id")
-  updateSubscription(@Param("id") id: string, @Body() dto: UpdateSubscriptionDto) {
-    return this.platformService.updateSubscription(id, dto);
+  updateSubscription(@CurrentUser() user: RequestUser, @Param("id") id: string, @Body() dto: UpdateSubscriptionDto) {
+    return this.platformService.updateSubscription(id, user.id, dto);
   }
 
   @PlatformPermission(PERMISSIONS.platformRead)

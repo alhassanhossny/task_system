@@ -1,4 +1,5 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
+import { Type } from "class-transformer";
 import { BillingInterval, SubscriptionStatus } from "@prisma/client";
 import { IsDateString, IsEnum, IsInt, IsObject, IsOptional, IsUUID, Min } from "class-validator";
 
@@ -20,6 +21,7 @@ export class UpdateSubscriptionDto {
 
   @ApiPropertyOptional({ minimum: 1 })
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   seats?: number;

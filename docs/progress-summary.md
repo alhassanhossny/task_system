@@ -16,7 +16,7 @@ Current Git state:
 - Latest Phase 2B.2 work: `Implement Phase 2B.2 manager hierarchy and team management`.
 - Latest Phase 2C work: `Implement Phase 2C global search and productivity layer`.
 - Latest Phase 3 work: `Implement Phase 3 email center`.
-- Latest Phase 4 work: `Implement Phase 4 company management APIs`.
+- Latest Phase 4 work: `Implement Phase 4 subscription management APIs`.
 - Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature-super-admin-portal`
 
 The repository now contains:
@@ -474,7 +474,7 @@ Follow-up work:
 
 ## In Progress Phase 4 Super Admin SaaS Portal
 
-Current checkpoint: Step 4 Company Management APIs completed.
+Current checkpoint: Step 5 Subscription and billing management APIs completed.
 
 Completed checkpoints:
 
@@ -687,9 +687,93 @@ Completed Step 4 checkpoints:
   - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tenant-isolation` passed.
   - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-management` passed after rerunning outside the sandbox due to the known `tsx` IPC pipe restriction.
 
+- Step 5 Subscription and billing management APIs was completed as a manual subscription administration milestone.
+
+Completed Step 5 checkpoints:
+
+- Implemented Prisma-backed subscription plan APIs:
+  - `GET /api/v1/platform/plans`
+  - `POST /api/v1/platform/plans`
+- Implemented Prisma-backed company subscription APIs:
+  - `GET /api/v1/platform/subscriptions`
+  - `POST /api/v1/platform/subscriptions`
+  - `PATCH /api/v1/platform/subscriptions/:id`
+- Added DTOs for:
+  - listing subscription plans
+  - creating subscription plans
+  - creating subscriptions with numeric seat coercion
+  - updating subscriptions with numeric seat coercion
+- Added plan list pagination, tier filters, active/inactive filters, and search across:
+  - plan code
+  - plan name
+- Added subscription list pagination and filters for:
+  - company
+  - plan
+  - status
+  - billing interval
+- Added manual plan creation with:
+  - tier
+  - monthly/yearly price
+  - currency normalization
+  - limits
+  - feature JSON
+  - active/inactive status
+- Added subscription create/update behavior for:
+  - trialing subscriptions
+  - active subscriptions
+  - cancelled subscriptions
+  - expired status updates
+  - billing interval changes
+  - seat changes
+  - plan upgrades/downgrades
+- Company plan tier now follows the assigned subscription plan tier on subscription create/update.
+- Subscription list responses include related company, plan, and invoice count for manual billing visibility.
+- Added audit logging for:
+  - `SUBSCRIPTION_PLAN_CREATED`
+  - `SUBSCRIPTION_CREATED`
+  - `SUBSCRIPTION_UPDATED`
+- Published domain events for:
+  - `PLATFORM_SUBSCRIPTION_CREATED`
+  - `PLATFORM_SUBSCRIPTION_UPDATED`
+- Added subscription endpoint permission checks using:
+  - `subscriptions:read`
+  - `subscriptions:manage`
+  alongside platform-level access checks.
+- Kept this milestone subscription-management-only:
+  - no payment provider integration
+  - no automatic invoice generation
+  - no billing calculations beyond stored plan prices
+  - no analytics aggregation
+  - no usage snapshot generation
+  - no tenant switching execution
+  - no platform settings persistence
+  - no frontend changes
+  - no notifications
+- Added regression script:
+  - `test:platform-subscriptions`
+- Added regression coverage for:
+  - plan creation
+  - duplicate plan validation
+  - plan filtering
+  - inactive plan rejection for new subscriptions
+  - subscription creation
+  - subscription updates
+  - cancellation timestamps
+  - invoice count visibility
+  - tenant isolation preservation
+  - audit creation
+  - domain event publishing
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tenant-isolation` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-management` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-subscriptions` passed after rerunning outside the sandbox due to the known `tsx` IPC pipe restriction.
+
 Next checkpoint:
 
-- Step 5 Subscription and billing management APIs.
+- Step 6 Company switching service.
 
 ## Recent Fixes
 
@@ -822,3 +906,4 @@ Recent completed commits:
 - `Implement Phase 4 super admin permissions`
 - `Implement Phase 4 platform backend skeleton`
 - `Implement Phase 4 company management APIs`
+- `Implement Phase 4 subscription management APIs`

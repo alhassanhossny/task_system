@@ -18,6 +18,7 @@
     "test:global-search": "tsx src/search/tests/global-search.test.ts",
     "test:email-center": "tsx src/emails/tests/email-center.test.ts",
     "test:platform-company-management": "tsx src/modules/platform/tests/platform-company-management.test.ts",
+    "test:platform-subscriptions": "tsx src/modules/platform/tests/platform-subscriptions.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
     "format": "prettier --write \"src/**/*.ts\" \"../../prisma/**/*.ts\"",
