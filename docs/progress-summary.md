@@ -16,7 +16,7 @@ Current Git state:
 - Latest Phase 2B.2 work: `Implement Phase 2B.2 manager hierarchy and team management`.
 - Latest Phase 2C work: `Implement Phase 2C global search and productivity layer`.
 - Latest Phase 3 work: `Implement Phase 3 email center`.
-- Latest Phase 4 work: `Implement Phase 4 super admin permissions`.
+- Latest Phase 4 work: `Implement Phase 4 platform backend skeleton`.
 - Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature-super-admin-portal`
 
 The repository now contains:
@@ -474,7 +474,7 @@ Follow-up work:
 
 ## In Progress Phase 4 Super Admin SaaS Portal
 
-Current checkpoint: Step 2 Super Admin permission layer completed.
+Current checkpoint: Step 3 Super Admin backend module skeleton completed.
 
 Completed checkpoints:
 
@@ -514,8 +514,6 @@ Completed checkpoints:
   - `corepack pnpm typecheck` passed.
   - `corepack pnpm lint` passed.
 
-Next checkpoint:
-
 - Step 2 Super Admin permissions was completed as a permission and authorization scaffolding-only milestone.
 
 Completed Step 2 checkpoints:
@@ -554,9 +552,79 @@ Completed Step 2 checkpoints:
   - `corepack pnpm typecheck` passed.
   - `corepack pnpm lint` passed.
 
+- Step 3 Super Admin backend module skeleton was completed without business logic.
+
+Completed Step 3 checkpoints:
+
+- Added isolated Platform Administration backend module under `apps/api/src/modules/platform`.
+- Registered `PlatformModule` in the API application module.
+- Added platform authorization scaffolding:
+  - `PlatformAdminGuard`
+  - `@PlatformPermission()` decorator
+  - platform-only permission validation for `platform:read` and `platform:manage`
+- Added Platform DTO layer for:
+  - companies
+  - subscriptions
+  - analytics
+  - platform settings
+  - tenant switching
+- Added `PlatformService` skeleton methods with typed placeholder responses only:
+  - `listCompanies()`
+  - `getCompany()`
+  - `suspendCompany()`
+  - `activateCompany()`
+  - `listPlans()`
+  - `listSubscriptions()`
+  - `createSubscription()`
+  - `updateSubscription()`
+  - `getPlatformOverview()`
+  - `getUsageMetrics()`
+  - `listSettings()`
+  - `updateSetting()`
+  - `createSwitchSession()`
+  - `listSwitchSessions()`
+- Added Platform controller route skeletons under `/api/v1/platform`:
+  - `GET /api/v1/platform/companies`
+  - `GET /api/v1/platform/companies/:id`
+  - `POST /api/v1/platform/companies/:id/suspend`
+  - `POST /api/v1/platform/companies/:id/activate`
+  - `GET /api/v1/platform/subscriptions`
+  - `GET /api/v1/platform/plans`
+  - `POST /api/v1/platform/subscriptions`
+  - `PATCH /api/v1/platform/subscriptions/:id`
+  - `GET /api/v1/platform/analytics/overview`
+  - `GET /api/v1/platform/analytics/usage`
+  - `GET /api/v1/platform/settings`
+  - `PATCH /api/v1/platform/settings/:id`
+  - `POST /api/v1/platform/switch-company`
+  - `GET /api/v1/platform/switch-sessions`
+- Added Swagger grouping under `Platform Administration`.
+- Added platform event constants only:
+  - `PLATFORM_COMPANY_SUSPENDED`
+  - `PLATFORM_COMPANY_ACTIVATED`
+  - `PLATFORM_SUBSCRIPTION_CREATED`
+  - `PLATFORM_SUBSCRIPTION_UPDATED`
+  - `PLATFORM_SETTING_UPDATED`
+  - `PLATFORM_SWITCH_CREATED`
+- Kept this milestone skeleton-only:
+  - no Prisma database operations
+  - no company CRUD implementation
+  - no subscription CRUD implementation
+  - no analytics aggregation
+  - no usage snapshot generation
+  - no tenant switching execution
+  - no platform settings persistence
+  - no frontend changes
+  - no search indexing
+  - no audit logging
+  - no notifications
+- Validation checkpoint:
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+
 Next checkpoint:
 
-- Step 3 Super Admin backend module skeleton.
+- Step 4 Company management APIs.
 
 ## Recent Fixes
 
@@ -687,3 +755,4 @@ Recent completed commits:
 - `Implement Phase 3 email center`
 - `Add Phase 4 super admin database schema`
 - `Implement Phase 4 super admin permissions`
+- `Implement Phase 4 platform backend skeleton`
