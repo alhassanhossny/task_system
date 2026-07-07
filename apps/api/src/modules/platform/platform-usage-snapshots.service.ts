@@ -34,6 +34,8 @@ export type PlatformUsageSnapshotSummary = {
   activeSubscription: ActiveSubscriptionSnapshot | null;
 };
 
+type CompanyUsageMetrics = Omit<PlatformUsageSnapshotSummary, "id" | "companyId" | "periodStart" | "periodEnd">;
+
 @Injectable()
 export class PlatformUsageSnapshotsService {
   constructor(
@@ -47,10 +49,11 @@ export class PlatformUsageSnapshotsService {
       where: { deletedAt: null },
       select: { id: true, name: true }
     });
+    const metricsByCompany = await this.collectCompanyMetricsByCompany(companies.map((company) => company.id));
     const snapshots: PlatformUsageSnapshotSummary[] = [];
 
     for (const company of companies) {
-      const metrics = await this.collectCompanyMetrics(company.id);
+      const metrics = metricsByCompany.get(company.id) ?? this.emptyMetrics();
       const snapshot = await this.prisma.platformUsageSnapshot.upsert({
         where: {
           companyId_periodStart_periodEnd: {
@@ -133,48 +136,96 @@ export class PlatformUsageSnapshotsService {
     };
   }
 
-  async collectCompanyMetrics(companyId: string): Promise<Omit<PlatformUsageSnapshotSummary, "id" | "companyId" | "periodStart" | "periodEnd">> {
-    const [
-      usersCount,
-      activeUsersCount,
-      departmentCount,
-      tasksCount,
-      openTasksCount,
-      leaveRequestsCount,
-      emailsSentCount,
-      storageAggregate,
-      activeSubscription
-    ] = await Promise.all([
-      this.prisma.user.count({ where: { companyId, deletedAt: null } }),
-      this.prisma.user.count({ where: { companyId, status: UserStatus.ACTIVE, deletedAt: null } }),
-      this.prisma.department.count({ where: { companyId, deletedAt: null } }),
-      this.prisma.task.count({ where: { companyId, deletedAt: null } }),
-      this.prisma.task.count({ where: { companyId, deletedAt: null, status: { notIn: [TaskStatus.COMPLETED, TaskStatus.CANCELLED] } } }),
-      this.prisma.leaveRequest.count({ where: { companyId, deletedAt: null } }),
-      this.prisma.email.count({ where: { companyId, status: EmailStatus.SENT, deletedAt: null } }),
-      this.prisma.attachment.aggregate({ where: { companyId, deletedAt: null }, _sum: { fileSize: true } }),
-      this.activeSubscription(companyId)
-    ]);
+  async collectCompanyMetrics(companyId: string): Promise<CompanyUsageMetrics> {
+    const metricsByCompany = await this.collectCompanyMetricsByCompany([companyId]);
+    return metricsByCompany.get(companyId) ?? this.emptyMetrics();
+  }
 
-    return {
-      usersCount,
-      activeUsersCount,
-      departmentCount,
-      tasksCount,
-      openTasksCount,
-      leaveRequestsCount,
-      emailsSentCount,
-      storageBytes: storageAggregate._sum.fileSize ?? 0,
-      activeSubscription: activeSubscription
-        ? {
-            id: activeSubscription.id,
-            status: activeSubscription.status,
-            planId: activeSubscription.planId,
-            planCode: activeSubscription.plan.code,
-            planTier: activeSubscription.plan.tier
-          }
-        : null
-    };
+  private async collectCompanyMetricsByCompany(companyIds: string[]): Promise<Map<string, CompanyUsageMetrics>> {
+    const metricsByCompany = new Map<string, CompanyUsageMetrics>();
+
+    if (!companyIds.length) {
+      return metricsByCompany;
+    }
+
+    const [
+      userCounts,
+      activeUserCounts,
+      departmentCounts,
+      taskCounts,
+      openTaskCounts,
+      leaveRequestCounts,
+      sentEmailCounts,
+      storageAggregates,
+      activeSubscriptions
+    ] = await Promise.all([
+      this.prisma.user.groupBy({
+        by: ["companyId"],
+        where: { companyId: { in: companyIds }, deletedAt: null },
+        _count: { _all: true }
+      }),
+      this.prisma.user.groupBy({
+        by: ["companyId"],
+        where: { companyId: { in: companyIds }, status: UserStatus.ACTIVE, deletedAt: null },
+        _count: { _all: true }
+      }),
+      this.prisma.department.groupBy({
+        by: ["companyId"],
+        where: { companyId: { in: companyIds }, deletedAt: null },
+        _count: { _all: true }
+      }),
+      this.prisma.task.groupBy({
+        by: ["companyId"],
+        where: { companyId: { in: companyIds }, deletedAt: null },
+        _count: { _all: true }
+      }),
+      this.prisma.task.groupBy({
+        by: ["companyId"],
+        where: { companyId: { in: companyIds }, deletedAt: null, status: { notIn: [TaskStatus.COMPLETED, TaskStatus.CANCELLED] } },
+        _count: { _all: true }
+      }),
+      this.prisma.leaveRequest.groupBy({
+        by: ["companyId"],
+        where: { companyId: { in: companyIds }, deletedAt: null },
+        _count: { _all: true }
+      }),
+      this.prisma.email.groupBy({
+        by: ["companyId"],
+        where: { companyId: { in: companyIds }, status: EmailStatus.SENT, deletedAt: null },
+        _count: { _all: true }
+      }),
+      this.prisma.attachment.groupBy({
+        by: ["companyId"],
+        where: { companyId: { in: companyIds }, deletedAt: null },
+        _sum: { fileSize: true }
+      }),
+      this.activeSubscriptions(companyIds)
+    ]);
+    const usersByCompany = this.countsByCompany(userCounts);
+    const activeUsersByCompany = this.countsByCompany(activeUserCounts);
+    const departmentsByCompany = this.countsByCompany(departmentCounts);
+    const tasksByCompany = this.countsByCompany(taskCounts);
+    const openTasksByCompany = this.countsByCompany(openTaskCounts);
+    const leaveRequestsByCompany = this.countsByCompany(leaveRequestCounts);
+    const sentEmailsByCompany = this.countsByCompany(sentEmailCounts);
+    const storageByCompany = new Map(storageAggregates.map((row) => [row.companyId, row._sum.fileSize ?? 0]));
+    const activeSubscriptionByCompany = this.activeSubscriptionByCompany(activeSubscriptions);
+
+    for (const companyId of companyIds) {
+      metricsByCompany.set(companyId, {
+        usersCount: usersByCompany.get(companyId) ?? 0,
+        activeUsersCount: activeUsersByCompany.get(companyId) ?? 0,
+        departmentCount: departmentsByCompany.get(companyId) ?? 0,
+        tasksCount: tasksByCompany.get(companyId) ?? 0,
+        openTasksCount: openTasksByCompany.get(companyId) ?? 0,
+        leaveRequestsCount: leaveRequestsByCompany.get(companyId) ?? 0,
+        emailsSentCount: sentEmailsByCompany.get(companyId) ?? 0,
+        storageBytes: storageByCompany.get(companyId) ?? 0,
+        activeSubscription: activeSubscriptionByCompany.get(companyId) ?? null
+      });
+    }
+
+    return metricsByCompany;
   }
 
   dailyPeriod(date: Date) {
@@ -184,19 +235,58 @@ export class PlatformUsageSnapshotsService {
     return { periodStart, periodEnd };
   }
 
-  private activeSubscription(companyId: string) {
-    return this.prisma.companySubscription.findFirst({
+  private activeSubscriptions(companyIds: string[]) {
+    return this.prisma.companySubscription.findMany({
       where: {
-        companyId,
+        companyId: { in: companyIds },
         deletedAt: null,
         status: { in: [SubscriptionStatus.TRIALING, SubscriptionStatus.ACTIVE] }
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ companyId: "asc" }, { createdAt: "desc" }],
       include: { plan: true }
     });
   }
 
-  private snapshotMetadata(metrics: Omit<PlatformUsageSnapshotSummary, "id" | "companyId" | "periodStart" | "periodEnd">): Prisma.InputJsonObject {
+  private countsByCompany(rows: Array<{ companyId: string; _count: { _all: number } }>) {
+    return new Map(rows.map((row) => [row.companyId, row._count._all]));
+  }
+
+  private activeSubscriptionByCompany(
+    subscriptions: Awaited<ReturnType<PlatformUsageSnapshotsService["activeSubscriptions"]>>
+  ): Map<string, ActiveSubscriptionSnapshot> {
+    const activeSubscriptionByCompany = new Map<string, ActiveSubscriptionSnapshot>();
+
+    for (const subscription of subscriptions) {
+      if (activeSubscriptionByCompany.has(subscription.companyId)) {
+        continue;
+      }
+      activeSubscriptionByCompany.set(subscription.companyId, {
+        id: subscription.id,
+        status: subscription.status,
+        planId: subscription.planId,
+        planCode: subscription.plan.code,
+        planTier: subscription.plan.tier
+      });
+    }
+
+    return activeSubscriptionByCompany;
+  }
+
+  private emptyMetrics(): CompanyUsageMetrics {
+    return {
+      usersCount: 0,
+      activeUsersCount: 0,
+      departmentCount: 0,
+      tasksCount: 0,
+      openTasksCount: 0,
+      leaveRequestsCount: 0,
+      emailsSentCount: 0,
+      storageBytes: 0,
+      activeSubscription: null
+    };
+  }
+
+  private snapshotMetadata(metrics: CompanyUsageMetrics): Prisma.InputJsonObject {
     return {
       departmentCount: metrics.departmentCount,
       ...(metrics.activeSubscription

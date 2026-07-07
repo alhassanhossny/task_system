@@ -16,7 +16,7 @@ Current Git state:
 - Latest Phase 2B.2 work: `Implement Phase 2B.2 manager hierarchy and team management`.
 - Latest Phase 2C work: `Implement Phase 2C global search and productivity layer`.
 - Latest Phase 3 work: `Implement Phase 3 email center`.
-- Latest Phase 4 work: `Implement Phase 4 platform analytics and usage metrics`.
+- Latest Phase 4 work: `Optimize platform analytics queries`.
 - Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature-super-admin-portal`
 
 The repository now contains:
@@ -474,7 +474,7 @@ Follow-up work:
 
 ## In Progress Phase 4 Super Admin SaaS Portal
 
-Current checkpoint: Step 7 Platform Analytics and Usage Metrics completed.
+Current checkpoint: Platform Analytics Improvements Step 2 Query Optimization completed.
 
 Completed checkpoints:
 
@@ -939,9 +939,105 @@ Completed Step 7 checkpoints:
   - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-switching` passed.
   - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-analytics` passed after rerunning outside the sandbox due to the known `tsx` IPC pipe restriction.
 
+- Platform Analytics Improvements Step 1 completed the usage snapshot pipeline hardening after Phase 4 Step 7 review.
+
+Completed Platform Analytics Improvements Step 1 checkpoints:
+
+- Added a BullMQ processor for the platform usage snapshot queue:
+  - `PlatformUsageSnapshotWorker`
+  - queue: `platform-usage-snapshot`
+  - job: `generate-daily`
+- Registered the worker in `PlatformModule`.
+- Imported `QueuesModule` into `PlatformModule` so the platform worker uses the registered BullMQ queue.
+- Updated `PlatformUsageSnapshotQueue` to register the daily job during application bootstrap.
+- Replaced repeated ad hoc scheduling with BullMQ `upsertJobScheduler()` using a stable scheduler id:
+  - `platform-usage-snapshot:daily`
+- Kept the daily schedule persistent and restart-safe:
+  - cron pattern `0 1 * * *`
+  - same scheduler id reused on each bootstrap
+- Added retry handling for scheduled and manual snapshot jobs:
+  - 3 attempts
+  - exponential backoff
+  - 5000 ms initial delay
+  - completed/failed job retention limits
+- Added logging for:
+  - scheduler registration
+  - worker job start
+  - worker job completion
+  - ignored unknown jobs
+  - failed jobs
+  - scheduler registration failure
+- Kept bootstrap scheduler failures non-fatal so a transient Redis issue does not crash the API process.
+- Added manual snapshot enqueue support with stable date-based job ids when a date is provided.
+- Added regression script:
+  - `test:platform-usage-snapshots`
+- Added worker and scheduler regression coverage for:
+  - stable scheduler id
+  - repeat cron registration
+  - retry/backoff options
+  - manual enqueue options
+  - graceful scheduler registration failure
+  - unknown job handling
+  - invalid date rejection
+  - worker failure propagation for BullMQ retries
+  - successful worker processing
+  - database snapshot creation
+  - `/analytics/usage` service data population after worker execution
+- Environment note:
+  - project test PostgreSQL and Redis containers were restarted:
+    - `taskflow-postgres-test` on `127.0.0.1:5433`
+    - `taskflow-redis-test` on `127.0.0.1:6379`
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm --filter @taskflow/api exec prisma migrate deploy --schema prisma/schema.prisma` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm db:seed` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-analytics` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-usage-snapshots` passed.
+
 Next checkpoint:
 
-- Step 8 Platform settings management.
+- Platform Analytics Improvements Step 2 Query Optimization completed after the usage snapshot worker pipeline.
+
+Completed Platform Analytics Improvements Step 2 checkpoints:
+
+- Optimized platform analytics and usage snapshot queries without changing API response shapes, DTOs, route paths, permission checks, tenant isolation, audit logging, or queue behavior.
+- Replaced repeated overview status counts with grouped aggregates:
+  - companies grouped by status
+  - subscriptions grouped by status
+- Replaced `/api/v1/platform/analytics/usage` snapshot row loading with a grouped aggregate by `period_start`.
+- Optimized top-company analytics by replacing per-company count loops with grouped aggregate queries for:
+  - users by company
+  - tasks by company
+  - emails by company
+  - attachment storage by company
+  - active subscription plan lookup
+- Optimized daily snapshot generation by collecting company metrics in batches instead of querying each company individually.
+- Refactored `PlatformUsageSnapshotsService.collectCompanyMetrics()` to preserve its public behavior while delegating to the grouped batch collector.
+- Kept snapshot generation idempotent through the existing `platform_usage_snapshots` unique upsert.
+- Extended analytics regression coverage for:
+  - grouped aggregation correctness across multiple companies
+  - unchanged usage response values
+  - snapshot generation accuracy for each tenant
+  - public collector compatibility
+  - larger snapshot datasets in the worker pipeline
+- No Prisma migration was required.
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-analytics` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-usage-snapshots` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tenant-isolation` passed.
+- Runtime check after Step 2:
+  - `http://127.0.0.1:3000/ar/login` returned HTTP 200.
+  - `http://127.0.0.1:4000/api/v1/health` returned HTTP 200.
+  - `http://127.0.0.1:4000/docs` returned HTTP 200.
+
+Next checkpoint:
+
+- Platform Analytics Improvements Step 3 Endpoint-Level Authorization Tests.
 
 ## Recent Fixes
 
@@ -1009,6 +1105,7 @@ corepack pnpm test:platform-company-management
 corepack pnpm test:platform-subscriptions
 corepack pnpm test:platform-company-switching
 corepack pnpm test:platform-analytics
+corepack pnpm test:platform-usage-snapshots
 ```
 
 Additional local smoke checks completed:
@@ -1081,3 +1178,4 @@ Recent completed commits:
 - `Implement Phase 4 subscription management APIs`
 - `Implement Phase 4 company switching service`
 - `Implement Phase 4 platform analytics and usage metrics`
+- `Complete platform analytics snapshot pipeline and query optimization`

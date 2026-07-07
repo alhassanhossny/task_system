@@ -1,12 +1,15 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";
+import { QueuesModule } from "../../queues/queues.module";
 import { PlatformController } from "./platform.controller";
+import { PlatformUsageSnapshotWorker } from "./platform-usage-snapshot.worker";
 import { PlatformUsageSnapshotsService } from "./platform-usage-snapshots.service";
 import { PlatformService } from "./platform.service";
 
 @Module({
   imports: [
+    QueuesModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -19,7 +22,7 @@ import { PlatformService } from "./platform.service";
     })
   ],
   controllers: [PlatformController],
-  providers: [PlatformService, PlatformUsageSnapshotsService],
+  providers: [PlatformService, PlatformUsageSnapshotsService, PlatformUsageSnapshotWorker],
   exports: [PlatformService, PlatformUsageSnapshotsService]
 })
 export class PlatformModule {}

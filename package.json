@@ -24,6 +24,7 @@
     "test:platform-subscriptions": "corepack pnpm --filter @taskflow/api test:platform-subscriptions",
     "test:platform-company-switching": "corepack pnpm --filter @taskflow/api test:platform-company-switching",
     "test:platform-analytics": "corepack pnpm --filter @taskflow/api test:platform-analytics",
+    "test:platform-usage-snapshots": "corepack pnpm --filter @taskflow/api test:platform-usage-snapshots",
     "format": "corepack pnpm -r format",
     "db:generate": "corepack pnpm --filter @taskflow/api prisma:generate",
     "db:migrate": "corepack pnpm --filter @taskflow/api prisma:migrate",

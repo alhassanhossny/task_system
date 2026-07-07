@@ -11,7 +11,7 @@ TASK Flow SaaS is a multi-tenant monorepo with:
 - `packages/config`: Roles, permissions, locales, and tenant constants.
 - `packages/shared`: Shared API response utilities.
 
-As of 2026-07-01, the active development branch is expected to be:
+As of 2026-07-07, the active development branch is expected to be:
 
 ```bash
 feature-super-admin-portal
@@ -20,7 +20,9 @@ feature-super-admin-portal
 Current milestone:
 
 - Phase 4 Step 7 Platform Analytics and Usage Metrics is complete.
-- Next planned milestone is Phase 4 Step 8 Platform Settings Management.
+- Platform Analytics Improvements Step 1 completed the usage snapshot worker and scheduler pipeline.
+- Platform Analytics Improvements Step 2 optimized analytics and usage snapshot queries.
+- Next planned milestone is Platform Analytics Improvements Step 3 Endpoint-Level Authorization Tests.
 
 Check `docs/progress-summary.md` before starting any work. It is the source of truth for completed phases, validation status, local URLs, and follow-up work.
 
@@ -120,6 +122,7 @@ DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=publ
 DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-subscriptions
 DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-switching
 DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-analytics
+DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-usage-snapshots
 ```
 
 If the local database uses port `5432`, replace the URL accordingly.
@@ -162,10 +165,24 @@ Step 7 added:
 - `PLATFORM_USAGE_SNAPSHOT_CREATED`
 - `test:platform-analytics`
 
+Platform Analytics Improvements Step 1 added:
+
+- `PlatformUsageSnapshotWorker`
+- bootstrap scheduling through `PlatformUsageSnapshotQueue.onApplicationBootstrap()`
+- stable BullMQ scheduler id `platform-usage-snapshot:daily`
+- retry/backoff handling for scheduled and manual snapshot jobs
+- `test:platform-usage-snapshots`
+
+Platform Analytics Improvements Step 2 added:
+
+- grouped aggregate analytics queries for overview counts, usage metrics, top companies, and snapshot generation
+- batched company metric collection in `PlatformUsageSnapshotsService`
+- regression coverage for multi-company snapshot accuracy and larger snapshot datasets
+
 Next recommended scope:
 
-- Step 8 Platform Settings Management.
-- Keep Step 8 backend-only unless the user explicitly approves frontend work.
+- Platform Analytics Improvements Step 3 Endpoint-Level Authorization Tests.
+- Verify real HTTP platform analytics endpoints return 200 for Super Admin, 403 for tenant roles, and 401 for anonymous requests.
 
 ## Git And Remote Notes
 

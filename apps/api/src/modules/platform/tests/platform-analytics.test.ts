@@ -207,6 +207,35 @@ async function main() {
     assert.equal((companyASnapshot.metadata as { departmentCount?: number; planTier?: string }).departmentCount, 1);
     assert.equal((companyASnapshot.metadata as { departmentCount?: number; planTier?: string }).planTier, CompanyPlan.PROFESSIONAL);
 
+    const companyBSnapshot = await prisma.platformUsageSnapshot.findUniqueOrThrow({
+      where: {
+        companyId_periodStart_periodEnd: {
+          companyId: companyB.id,
+          periodStart: generated.periodStart,
+          periodEnd: generated.periodEnd
+        }
+      }
+    });
+    assert.equal(companyBSnapshot.usersCount, 1);
+    assert.equal(companyBSnapshot.tasksCount, 1);
+    assert.equal(companyBSnapshot.openTasksCount, 1);
+    assert.equal(companyBSnapshot.leaveRequestsCount, 1);
+    assert.equal(companyBSnapshot.emailsSentCount, 1);
+    assert.equal(Number(companyBSnapshot.storageBytes), 1024);
+    assert.equal((companyBSnapshot.metadata as { departmentCount?: number; planTier?: string }).departmentCount, 1);
+    assert.equal((companyBSnapshot.metadata as { departmentCount?: number; planTier?: string }).planTier, CompanyPlan.STARTER);
+
+    const companyAMetrics = await usageSnapshotsService.collectCompanyMetrics(companyA.id);
+    assert.equal(companyAMetrics.usersCount, 2);
+    assert.equal(companyAMetrics.activeUsersCount, 2);
+    assert.equal(companyAMetrics.departmentCount, 1);
+    assert.equal(companyAMetrics.tasksCount, 2);
+    assert.equal(companyAMetrics.openTasksCount, 1);
+    assert.equal(companyAMetrics.leaveRequestsCount, 1);
+    assert.equal(companyAMetrics.emailsSentCount, 1);
+    assert.equal(companyAMetrics.storageBytes, 6144);
+    assert.equal(companyAMetrics.activeSubscription?.planTier, CompanyPlan.PROFESSIONAL);
+
     const snapshotAudit = await prisma.auditLog.findFirst({
       where: { companyId: platformCompany.id, actorId: actor.id, action: "USAGE_SNAPSHOT_GENERATED" }
     });

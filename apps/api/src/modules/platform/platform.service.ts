@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
-import { BillingInterval, CompanyPlan, CompanyStatus, CompanySwitchStatus, EmailStatus, EntityType, Prisma, SubscriptionStatus } from "@prisma/client";
+import { BillingInterval, CompanyPlan, CompanyStatus, CompanySwitchStatus, EntityType, Prisma, SubscriptionStatus } from "@prisma/client";
 import { RequestUser } from "../../common/types/request-user";
 import { DomainEventBus } from "../../domain-events/domain-event-bus.service";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -472,47 +472,47 @@ export class PlatformService {
     const subscriptionScope = { companyId: { in: companyIds }, deletedAt: null };
 
     const [
-      companiesTotal,
-      companiesActive,
-      companiesSuspended,
-      companiesTrialing,
-      subscriptionsTotal,
-      subscriptionsActive,
-      subscriptionsExpired,
-      subscriptionsCancelled,
+      companyStatusCounts,
+      subscriptionStatusCounts,
       usersTotal,
       totalTasks,
       totalLeaveRequests,
       totalEmails,
       totalAttachments
     ] = await Promise.all([
-      this.prisma.company.count({ where: companyScope }),
-      this.prisma.company.count({ where: { ...companyScope, status: CompanyStatus.ACTIVE } }),
-      this.prisma.company.count({ where: { ...companyScope, status: CompanyStatus.SUSPENDED } }),
-      this.prisma.company.count({ where: { ...companyScope, status: CompanyStatus.TRIAL } }),
-      this.prisma.companySubscription.count({ where: subscriptionScope }),
-      this.prisma.companySubscription.count({ where: { ...subscriptionScope, status: SubscriptionStatus.ACTIVE } }),
-      this.prisma.companySubscription.count({ where: { ...subscriptionScope, status: SubscriptionStatus.EXPIRED } }),
-      this.prisma.companySubscription.count({ where: { ...subscriptionScope, status: SubscriptionStatus.CANCELLED } }),
+      this.prisma.company.groupBy({
+        by: ["status"],
+        where: companyScope,
+        _count: { _all: true }
+      }),
+      this.prisma.companySubscription.groupBy({
+        by: ["status"],
+        where: subscriptionScope,
+        _count: { _all: true }
+      }),
       this.prisma.user.count({ where: tenantScope }),
       this.prisma.task.count({ where: tenantScope }),
       this.prisma.leaveRequest.count({ where: tenantScope }),
       this.prisma.email.count({ where: tenantScope }),
       this.prisma.attachment.count({ where: tenantScope })
     ]);
+    const companiesByStatus = new Map(companyStatusCounts.map((row) => [row.status, row._count._all]));
+    const subscriptionsByStatus = new Map(subscriptionStatusCounts.map((row) => [row.status, row._count._all]));
+    const companiesTotal = this.sumMapValues(companiesByStatus);
+    const subscriptionsTotal = this.sumMapValues(subscriptionsByStatus);
 
     return {
       companies: {
         total: companiesTotal,
-        active: companiesActive,
-        suspended: companiesSuspended,
-        trialing: companiesTrialing
+        active: companiesByStatus.get(CompanyStatus.ACTIVE) ?? 0,
+        suspended: companiesByStatus.get(CompanyStatus.SUSPENDED) ?? 0,
+        trialing: companiesByStatus.get(CompanyStatus.TRIAL) ?? 0
       },
       subscriptions: {
         total: subscriptionsTotal,
-        active: subscriptionsActive,
-        expired: subscriptionsExpired,
-        cancelled: subscriptionsCancelled
+        active: subscriptionsByStatus.get(SubscriptionStatus.ACTIVE) ?? 0,
+        expired: subscriptionsByStatus.get(SubscriptionStatus.EXPIRED) ?? 0,
+        cancelled: subscriptionsByStatus.get(SubscriptionStatus.CANCELLED) ?? 0
       },
       users: {
         total: usersTotal
@@ -530,45 +530,39 @@ export class PlatformService {
     const range = this.analyticsRange(query.range);
     const { periodStart, periodEnd } = this.analyticsPeriod(range, query);
     const companyIds = await this.platformCompanyIds(query.companyId);
-    const snapshots = await this.prisma.platformUsageSnapshot.findMany({
+    const snapshotsByDay = await this.prisma.platformUsageSnapshot.groupBy({
+      by: ["periodStart"],
       where: {
         companyId: { in: companyIds },
         deletedAt: null,
         periodStart: { gte: periodStart },
         periodEnd: { lte: periodEnd }
       },
+      _count: { companyId: true },
+      _sum: {
+        usersCount: true,
+        tasksCount: true,
+        emailsSentCount: true
+      },
       orderBy: { periodStart: "asc" }
     });
-    const grouped = new Map<
-      string,
-      {
-        companyIds: Set<string>;
-        users: number;
-        tasks: number;
-        emails: number;
-      }
-    >();
-
-    for (const snapshot of snapshots) {
-      const key = this.dateKey(snapshot.periodStart);
-      const current = grouped.get(key) ?? {
-        companyIds: new Set<string>(),
-        users: 0,
-        tasks: 0,
-        emails: 0
-      };
-      current.companyIds.add(snapshot.companyId);
-      current.users += snapshot.usersCount;
-      current.tasks += snapshot.tasksCount;
-      current.emails += snapshot.emailsSentCount;
-      grouped.set(key, current);
-    }
+    const grouped = new Map(
+      snapshotsByDay.map((snapshot) => [
+        this.dateKey(snapshot.periodStart),
+        {
+          companies: snapshot._count.companyId,
+          users: snapshot._sum.usersCount ?? 0,
+          tasks: snapshot._sum.tasksCount ?? 0,
+          emails: snapshot._sum.emailsSentCount ?? 0
+        }
+      ])
+    );
 
     const dates = this.dateKeysBetween(periodStart, periodEnd);
 
     return {
       range,
-      companies: dates.map((date) => ({ date, value: grouped.get(date)?.companyIds.size ?? 0 })),
+      companies: dates.map((date) => ({ date, value: grouped.get(date)?.companies ?? 0 })),
       users: dates.map((date) => ({ date, value: grouped.get(date)?.users ?? 0 })),
       tasks: dates.map((date) => ({ date, value: grouped.get(date)?.tasks ?? 0 })),
       emails: dates.map((date) => ({ date, value: grouped.get(date)?.emails ?? 0 }))
@@ -577,6 +571,10 @@ export class PlatformService {
 
   async getTopCompanies(query: PlatformAnalyticsQueryDto = {}): Promise<TopCompanyUsage[]> {
     const companyIds = await this.platformCompanyIds(query.companyId);
+    if (!companyIds.length) {
+      return [];
+    }
+
     const companies = await this.prisma.company.findMany({
       where: { id: { in: companyIds }, deletedAt: null },
       select: {
@@ -585,36 +583,58 @@ export class PlatformService {
         plan: true
       }
     });
-
-    const usage = await Promise.all(
-      companies.map(async (company) => {
-        const [users, tasks, emails, storage, activeSubscription] = await Promise.all([
-          this.prisma.user.count({ where: { companyId: company.id, deletedAt: null } }),
-          this.prisma.task.count({ where: { companyId: company.id, deletedAt: null } }),
-          this.prisma.email.count({ where: { companyId: company.id, deletedAt: null } }),
-          this.prisma.attachment.aggregate({ where: { companyId: company.id, deletedAt: null }, _sum: { fileSize: true } }),
-          this.prisma.companySubscription.findFirst({
-            where: {
-              companyId: company.id,
-              deletedAt: null,
-              status: { in: [SubscriptionStatus.TRIALING, SubscriptionStatus.ACTIVE] }
-            },
-            orderBy: { createdAt: "desc" },
-            include: { plan: true }
-          })
-        ]);
-
-        return {
-          companyId: company.id,
-          companyName: company.name,
-          users,
-          tasks,
-          emails,
-          storageBytes: storage._sum.fileSize ?? 0,
-          plan: activeSubscription?.plan.tier ?? company.plan
-        };
+    const [userCounts, taskCounts, emailCounts, storageAggregates, activeSubscriptions] = await Promise.all([
+      this.prisma.user.groupBy({
+        by: ["companyId"],
+        where: { companyId: { in: companyIds }, deletedAt: null },
+        _count: { _all: true }
+      }),
+      this.prisma.task.groupBy({
+        by: ["companyId"],
+        where: { companyId: { in: companyIds }, deletedAt: null },
+        _count: { _all: true }
+      }),
+      this.prisma.email.groupBy({
+        by: ["companyId"],
+        where: { companyId: { in: companyIds }, deletedAt: null },
+        _count: { _all: true }
+      }),
+      this.prisma.attachment.groupBy({
+        by: ["companyId"],
+        where: { companyId: { in: companyIds }, deletedAt: null },
+        _sum: { fileSize: true }
+      }),
+      this.prisma.companySubscription.findMany({
+        where: {
+          companyId: { in: companyIds },
+          deletedAt: null,
+          status: { in: [SubscriptionStatus.TRIALING, SubscriptionStatus.ACTIVE] }
+        },
+        orderBy: [{ companyId: "asc" }, { createdAt: "desc" }],
+        include: { plan: true }
       })
-    );
+    ]);
+    const usersByCompany = this.countsByCompany(userCounts);
+    const tasksByCompany = this.countsByCompany(taskCounts);
+    const emailsByCompany = this.countsByCompany(emailCounts);
+    const storageByCompany = new Map(storageAggregates.map((row) => [row.companyId, row._sum.fileSize ?? 0]));
+    const planByCompany = new Map<string, CompanyPlan>();
+
+    for (const subscription of activeSubscriptions) {
+      if (!planByCompany.has(subscription.companyId)) {
+        planByCompany.set(subscription.companyId, subscription.plan.tier);
+      }
+    }
+
+    const usage = companies.map((company) => ({
+      companyId: company.id,
+      companyName: company.name,
+      users: usersByCompany.get(company.id) ?? 0,
+      tasks: tasksByCompany.get(company.id) ?? 0,
+      emails: emailsByCompany.get(company.id) ?? 0,
+      storageBytes: storageByCompany.get(company.id) ?? 0,
+      plan: planByCompany.get(company.id) ?? company.plan
+    }));
 
     return usage
       .sort((a, b) => this.companyUsageScore(b) - this.companyUsageScore(a))
@@ -851,6 +871,14 @@ export class PlatformService {
 
   private companyUsageScore(company: Pick<TopCompanyUsage, "users" | "tasks" | "emails" | "storageBytes">) {
     return company.users + company.tasks + company.emails + Math.ceil(company.storageBytes / 1024 / 1024);
+  }
+
+  private countsByCompany(rows: Array<{ companyId: string; _count: { _all: number } }>) {
+    return new Map(rows.map((row) => [row.companyId, row._count._all]));
+  }
+
+  private sumMapValues(map: Map<unknown, number>) {
+    return Array.from(map.values()).reduce((sum, value) => sum + value, 0);
   }
 
   private list<T, Q = unknown>(data: T[], query?: Q): PlatformListResponse<T, Q> {
