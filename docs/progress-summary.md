@@ -16,7 +16,7 @@ Current Git state:
 - Latest Phase 2B.2 work: `Implement Phase 2B.2 manager hierarchy and team management`.
 - Latest Phase 2C work: `Implement Phase 2C global search and productivity layer`.
 - Latest Phase 3 work: `Implement Phase 3 email center`.
-- Latest Phase 4 work: `Implement Phase 4 super admin web dashboard`.
+- Latest Phase 4 work: `Prepare v1.0.0-beta release baseline`.
 - Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature-super-admin-portal`
 
 The repository now contains:
@@ -1198,6 +1198,61 @@ Completed Phase 4 Step 8 Super Admin Web Dashboard checkpoints:
 Next checkpoint:
 
 - Pending review before any next Phase 4 scope.
+
+## v1.0.0-beta Release Baseline
+
+Prepared locally on 2026-07-07.
+
+Completed checkpoints:
+
+- Added `CHANGELOG.md` with production-ready v1.0.0-beta release notes.
+- Documented the beta release scope:
+  - completed SaaS foundation
+  - Tasks
+  - Leave and Time-Off Management
+  - Team Management
+  - Global Search
+  - Email Center
+  - Super Admin Platform backend
+  - Super Admin Web Dashboard
+- Documented migration-freeze policy:
+  - existing Prisma migrations are frozen after the beta tag
+  - do not edit existing migrations after tagging
+  - add new migrations only for approved Phase 5 work or critical fixes
+- Updated `AGENTS.md` so another machine treats `v1.0.0-beta` as the stable baseline.
+- Fixed deterministic search enrichment before release:
+  - leave request search indexing now includes manager name and email
+  - prevents team approval search metadata from being lost when leave and team event subscribers update the same leave request search record in different orders
+- No Prisma migration was required.
+
+Full local validation checkpoint:
+
+- `corepack pnpm db:generate` passed.
+- `corepack pnpm typecheck` passed.
+- `corepack pnpm lint` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tenant-isolation` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tasks-core` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:leave-requests-core` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:leave-enhancements` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:leave-balances` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:calendar` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:permissions` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:team-management` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:global-search` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:email-center` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-management` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-subscriptions` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-switching` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-analytics` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-usage-snapshots` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-security` passed.
+- `corepack pnpm test:platform-dashboard` passed.
+
+Release actions:
+
+- `feature-super-admin-portal` is ready to merge into `main`.
+- `v1.0.0-beta` should be created on `main` after the release-prep commit is merged.
+- Remote push and CI verification still require GitHub credentials on the machine.
 
 ## Recent Fixes
 

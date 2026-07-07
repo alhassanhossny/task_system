@@ -63,7 +63,7 @@ export class LeaveEventsHandler implements OnModuleInit, OnModuleDestroy {
     const leave = await this.prisma.leaveRequest.findFirst({
       where: { id: event.entityId, companyId: event.companyId },
       include: {
-        employee: { select: { id: true, name: true, email: true } },
+        employee: { select: { id: true, name: true, email: true, manager: { select: { name: true, email: true } } } },
         department: { select: { name: true, code: true } },
         leaveTypeRef: { select: { name: true, code: true } }
       }
@@ -122,6 +122,8 @@ export class LeaveEventsHandler implements OnModuleInit, OnModuleDestroy {
         title: `${leave.requestNumber ?? ""} ${leave.employee.name} ${leave.leaveType}`.trim(),
         content: [
           leave.requestNumber,
+          leave.employee.manager?.name,
+          leave.employee.manager?.email,
           leave.employee.name,
           leave.employee.email,
           leave.leaveType,

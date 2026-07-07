@@ -23,7 +23,8 @@ Current milestone:
 - Platform Analytics Improvements Step 1 completed the usage snapshot worker and scheduler pipeline.
 - Platform Analytics Improvements Step 2 optimized analytics and usage snapshot queries.
 - Platform Analytics Improvements Step 3 added endpoint-level Platform Administration authorization tests.
-- Next planned milestone is pending review.
+- The next release baseline is `v1.0.0-beta`.
+- Next planned implementation milestone is pending review.
 
 Check `docs/progress-summary.md` before starting any work. It is the source of truth for completed phases, validation status, local URLs, and follow-up work.
 
@@ -202,6 +203,17 @@ Phase 4 Step 8 added:
 Next recommended scope:
 
 - Pending user review before any additional Phase 4 scope.
+
+## Release Baseline Rules
+
+Before starting Phase 5:
+
+- Merge `feature-super-admin-portal` into `main`.
+- Tag the stable baseline as `v1.0.0-beta`.
+- Keep `CHANGELOG.md` updated for release notes.
+- Treat all existing Prisma migrations as frozen after the beta tag.
+- Do not edit existing migrations after tagging; add new migrations only for approved Phase 5 work or critical fixes.
+- Run the full regression suite before release tagging or pushing.
 
 ## Git And Remote Notes
 
