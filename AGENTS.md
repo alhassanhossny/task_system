@@ -19,11 +19,11 @@ feature-super-admin-portal
 
 Current milestone:
 
-- Phase 4 Step 7 Platform Analytics and Usage Metrics is complete.
+- Phase 4 Step 8 Super Admin Web Dashboard is complete.
 - Platform Analytics Improvements Step 1 completed the usage snapshot worker and scheduler pipeline.
 - Platform Analytics Improvements Step 2 optimized analytics and usage snapshot queries.
 - Platform Analytics Improvements Step 3 added endpoint-level Platform Administration authorization tests.
-- Next planned milestone is Phase 4 Step 8 Super Admin Web Dashboard.
+- Next planned milestone is pending review.
 
 Check `docs/progress-summary.md` before starting any work. It is the source of truth for completed phases, validation status, local URLs, and follow-up work.
 
@@ -125,6 +125,7 @@ DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=publ
 DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-analytics
 DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-usage-snapshots
 DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-security
+corepack pnpm test:platform-dashboard
 ```
 
 If the local database uses port `5432`, replace the URL accordingly.
@@ -155,6 +156,7 @@ Completed Phase 4 milestones:
 - Step 5: Subscription management APIs.
 - Step 6: Company switching service.
 - Step 7: Platform analytics and usage metrics.
+- Step 8: Super Admin web dashboard.
 
 Step 7 added:
 
@@ -188,10 +190,18 @@ Platform Analytics Improvements Step 3 added:
 - permission decorator checks for `platform:read`, `platform:manage`, `analytics:read`, `subscriptions:manage`, `companies:suspend`, and `tenant_switch:execute`
 - `test:platform-security`
 
+Phase 4 Step 8 added:
+
+- Platform Administration frontend routes under `/platform`
+- permission-gated Platform sidebar section
+- Super Admin dashboard, companies, subscriptions, plans, analytics, settings, and switch session views
+- frontend Platform API service and permission helpers
+- Arabic and English Platform navigation labels
+- `test:platform-dashboard`
+
 Next recommended scope:
 
-- Phase 4 Step 8 Super Admin Web Dashboard.
-- Build the web portal on top of the completed Platform Administration APIs without changing backend contracts.
+- Pending user review before any additional Phase 4 scope.
 
 ## Git And Remote Notes
 

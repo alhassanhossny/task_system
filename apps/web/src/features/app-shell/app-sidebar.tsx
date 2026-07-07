@@ -4,11 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CheckSquare, ChevronDown } from "lucide-react";
 import { buildNav } from "./nav";
+import { useAuth } from "@/features/auth/auth-store";
 import type { Lang, UiText } from "@/features/prototype/types";
 
 export function AppSidebar({ t, lang, collapsed }: { t: UiText; lang: Lang; collapsed: boolean }) {
   const pathname = usePathname();
-  const nav = buildNav(t);
+  const { user } = useAuth();
+  const nav = buildNav(t, user?.permissions ?? []);
 
   return (
     <aside

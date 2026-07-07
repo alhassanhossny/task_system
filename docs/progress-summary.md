@@ -1,10 +1,10 @@
 # Progress Summary
 
-Last updated: 2026-07-01
+Last updated: 2026-07-07
 
 ## Current Status
 
-Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, Phase 2B Leave Requests Core, Phase 2B.1 Leave Enhancements, Phase 2B.2 Manager Hierarchy & Team Management, Phase 2C Global Search & Productivity Layer, and Phase 3 Email Center are implemented. Phase 4 Super Admin SaaS Portal is in progress.
+Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, Phase 2B Leave Requests Core, Phase 2B.1 Leave Enhancements, Phase 2B.2 Manager Hierarchy & Team Management, Phase 2C Global Search & Productivity Layer, Phase 3 Email Center, and Phase 4 Step 8 Super Admin Web Dashboard are implemented.
 
 Current Git state:
 
@@ -16,7 +16,7 @@ Current Git state:
 - Latest Phase 2B.2 work: `Implement Phase 2B.2 manager hierarchy and team management`.
 - Latest Phase 2C work: `Implement Phase 2C global search and productivity layer`.
 - Latest Phase 3 work: `Implement Phase 3 email center`.
-- Latest Phase 4 work: `Add platform endpoint authorization tests`.
+- Latest Phase 4 work: `Implement Phase 4 super admin web dashboard`.
 - Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature-super-admin-portal`
 
 The repository now contains:
@@ -1094,9 +1094,110 @@ Completed Platform Analytics Improvements Step 3 checkpoints:
   - `http://127.0.0.1:4000/api/v1/health` returned HTTP 200.
   - `http://127.0.0.1:4000/docs` returned HTTP 200.
 
+Completed Phase 4 Step 8 Super Admin Web Dashboard checkpoints:
+
+- Added a Platform Administration frontend area using the existing authenticated app shell, `next-intl` locale shell, theme, API client, permissions, and React Query patterns.
+- Added permission-gated sidebar navigation:
+  - Platform Dashboard
+  - Companies
+  - Subscriptions
+  - Plans
+  - Analytics
+  - Settings
+  - Switch Sessions
+- Platform navigation is hidden unless the signed-in user has `platform:read`.
+- Platform actions are permission-gated for:
+  - `platform:manage`
+  - `companies:suspend`
+  - `subscriptions:manage`
+  - `tenant_switch:execute`
+  - `analytics:read`
+  - `platform_settings:update`
+- Added frontend platform API service:
+  - analytics overview, usage, top companies, and subscription distribution
+  - company list/detail/suspend/activate
+  - subscription list/create/update
+  - plan list/create
+  - platform settings list/update
+  - switch session list/create/end
+- Added Platform Dashboard UI:
+  - total/active/suspended/trial company cards
+  - total users/tasks/leave requests/emails cards
+  - usage charts
+  - subscription distribution
+  - top companies table
+- Added Companies UI:
+  - server pagination
+  - search
+  - status and plan filters
+  - company table
+  - details drawer
+  - suspend/activate confirmation actions
+- Added Subscriptions UI:
+  - company, plan, status, and billing interval filters
+  - subscription table
+  - create/edit subscription modal
+- Added Plans UI:
+  - plan filters
+  - plan table
+  - create plan dialog with features/limits JSON inputs
+- Added Analytics UI:
+  - dedicated range selector for 7d, 30d, 90d, and 365d
+  - overview cards
+  - growth charts
+  - subscription distribution
+  - top companies table
+- Added Settings UI:
+  - settings table
+  - update setting dialog using the existing platform settings endpoint
+- Added Switch Sessions UI:
+  - session table
+  - create switch session dialog
+  - end session confirmation
+  - impersonation token warning panel
+  - copy token action
+  - open company button without replacing the current login session
+- Added Arabic and English navigation labels for Platform pages.
+- Added route files:
+  - `apps/web/src/app/[locale]/(app)/platform/page.tsx`
+  - `apps/web/src/app/[locale]/(app)/platform/companies/page.tsx`
+  - `apps/web/src/app/[locale]/(app)/platform/subscriptions/page.tsx`
+  - `apps/web/src/app/[locale]/(app)/platform/plans/page.tsx`
+  - `apps/web/src/app/[locale]/(app)/platform/analytics/page.tsx`
+  - `apps/web/src/app/[locale]/(app)/platform/settings/page.tsx`
+  - `apps/web/src/app/[locale]/(app)/platform/switch-sessions/page.tsx`
+- Added feature files:
+  - `apps/web/src/features/platform/platform-service.ts`
+  - `apps/web/src/features/platform/platform-access.ts`
+  - `apps/web/src/features/platform/platform-view.tsx`
+- Added `test:platform-dashboard` static frontend regression coverage for:
+  - route files
+  - Platform navigation visibility wiring
+  - permission constants
+  - Platform API integrations
+  - dashboard sections
+  - loading, error, empty, and permission denied states
+  - company suspend/activate actions
+  - subscription creation
+  - plan creation
+  - switch session token handling
+- No Prisma migration or backend API change was required.
+- Validation checkpoint:
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `corepack pnpm test:platform-dashboard` passed.
+- Runtime route checks returned HTTP 200:
+  - `http://127.0.0.1:3000/ar/platform`
+  - `http://127.0.0.1:3000/ar/platform/companies`
+  - `http://127.0.0.1:3000/ar/platform/subscriptions`
+  - `http://127.0.0.1:3000/ar/platform/plans`
+  - `http://127.0.0.1:3000/ar/platform/analytics`
+  - `http://127.0.0.1:3000/ar/platform/settings`
+  - `http://127.0.0.1:3000/ar/platform/switch-sessions`
+
 Next checkpoint:
 
-- Phase 4 Step 8 Super Admin Web Dashboard.
+- Pending review before any next Phase 4 scope.
 
 ## Recent Fixes
 
@@ -1135,6 +1236,13 @@ Current development URLs:
 - English leave requests: `http://localhost:3000/en/leaves`
 - Arabic email center: `http://localhost:3000/ar/email`
 - English email center: `http://localhost:3000/en/email`
+- Arabic platform dashboard: `http://localhost:3000/ar/platform`
+- Arabic platform companies: `http://localhost:3000/ar/platform/companies`
+- Arabic platform subscriptions: `http://localhost:3000/ar/platform/subscriptions`
+- Arabic platform plans: `http://localhost:3000/ar/platform/plans`
+- Arabic platform analytics: `http://localhost:3000/ar/platform/analytics`
+- Arabic platform settings: `http://localhost:3000/ar/platform/settings`
+- Arabic platform switch sessions: `http://localhost:3000/ar/platform/switch-sessions`
 - API docs: `http://localhost:4000/docs`
 - API base: `http://localhost:4000/api/v1`
 
@@ -1166,6 +1274,7 @@ corepack pnpm test:platform-company-switching
 corepack pnpm test:platform-analytics
 corepack pnpm test:platform-usage-snapshots
 corepack pnpm test:platform-security
+corepack pnpm test:platform-dashboard
 ```
 
 Additional local smoke checks completed:
@@ -1192,6 +1301,14 @@ Additional local smoke checks completed:
   - `/en/tasks/kanban`
   - `/ar/leaves`
   - `/en/leaves`
+- Web platform route checks returned HTTP 200:
+  - `/ar/platform`
+  - `/ar/platform/companies`
+  - `/ar/platform/subscriptions`
+  - `/ar/platform/plans`
+  - `/ar/platform/analytics`
+  - `/ar/platform/settings`
+  - `/ar/platform/switch-sessions`
 
 ## Remaining Work
 
@@ -1240,3 +1357,4 @@ Recent completed commits:
 - `Implement Phase 4 platform analytics and usage metrics`
 - `Complete platform analytics snapshot pipeline and query optimization`
 - `Add platform endpoint authorization tests`
+- `Implement Phase 4 super admin web dashboard`
