@@ -22,7 +22,8 @@ Current milestone:
 - Phase 4 Step 7 Platform Analytics and Usage Metrics is complete.
 - Platform Analytics Improvements Step 1 completed the usage snapshot worker and scheduler pipeline.
 - Platform Analytics Improvements Step 2 optimized analytics and usage snapshot queries.
-- Next planned milestone is Platform Analytics Improvements Step 3 Endpoint-Level Authorization Tests.
+- Platform Analytics Improvements Step 3 added endpoint-level Platform Administration authorization tests.
+- Next planned milestone is Phase 4 Step 8 Super Admin Web Dashboard.
 
 Check `docs/progress-summary.md` before starting any work. It is the source of truth for completed phases, validation status, local URLs, and follow-up work.
 
@@ -123,6 +124,7 @@ DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=publ
 DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-switching
 DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-analytics
 DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-usage-snapshots
+DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-security
 ```
 
 If the local database uses port `5432`, replace the URL accordingly.
@@ -179,10 +181,17 @@ Platform Analytics Improvements Step 2 added:
 - batched company metric collection in `PlatformUsageSnapshotsService`
 - regression coverage for multi-company snapshot accuracy and larger snapshot datasets
 
+Platform Analytics Improvements Step 3 added:
+
+- endpoint-level HTTP authorization regression coverage for Platform Administration routes
+- explicit coverage for anonymous, invalid JWT, expired JWT, tenant role denial, Super Admin access, switch token revocation, and suspended tenant blocking
+- permission decorator checks for `platform:read`, `platform:manage`, `analytics:read`, `subscriptions:manage`, `companies:suspend`, and `tenant_switch:execute`
+- `test:platform-security`
+
 Next recommended scope:
 
-- Platform Analytics Improvements Step 3 Endpoint-Level Authorization Tests.
-- Verify real HTTP platform analytics endpoints return 200 for Super Admin, 403 for tenant roles, and 401 for anonymous requests.
+- Phase 4 Step 8 Super Admin Web Dashboard.
+- Build the web portal on top of the completed Platform Administration APIs without changing backend contracts.
 
 ## Git And Remote Notes
 

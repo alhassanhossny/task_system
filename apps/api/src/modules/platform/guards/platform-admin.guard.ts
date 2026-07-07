@@ -1,11 +1,11 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from "@nestjs/common";
+import { CanActivate, ExecutionContext, ForbiddenException, Inject, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { PLATFORM_PERMISSIONS_KEY } from "../../../common/constants";
 import { RequestUser } from "../../../common/types/request-user";
 
 @Injectable()
 export class PlatformAdminGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(@Inject(Reflector) private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
     const requiredPermissions = this.reflector.getAllAndOverride<string[]>(PLATFORM_PERMISSIONS_KEY, [

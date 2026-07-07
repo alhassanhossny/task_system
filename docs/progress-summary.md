@@ -16,7 +16,7 @@ Current Git state:
 - Latest Phase 2B.2 work: `Implement Phase 2B.2 manager hierarchy and team management`.
 - Latest Phase 2C work: `Implement Phase 2C global search and productivity layer`.
 - Latest Phase 3 work: `Implement Phase 3 email center`.
-- Latest Phase 4 work: `Optimize platform analytics queries`.
+- Latest Phase 4 work: `Add platform endpoint authorization tests`.
 - Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature-super-admin-portal`
 
 The repository now contains:
@@ -474,7 +474,7 @@ Follow-up work:
 
 ## In Progress Phase 4 Super Admin SaaS Portal
 
-Current checkpoint: Platform Analytics Improvements Step 2 Query Optimization completed.
+Current checkpoint: Platform Analytics Improvements Step 3 Endpoint-Level Authorization Tests completed.
 
 Completed checkpoints:
 
@@ -1037,7 +1037,66 @@ Completed Platform Analytics Improvements Step 2 checkpoints:
 
 Next checkpoint:
 
-- Platform Analytics Improvements Step 3 Endpoint-Level Authorization Tests.
+- Platform Analytics Improvements Step 3 Endpoint-Level Authorization Tests completed.
+
+Completed Platform Analytics Improvements Step 3 checkpoints:
+
+- Added dedicated endpoint-level Platform Administration security regression coverage:
+  - `test:platform-security`
+  - real Nest HTTP server
+  - versioned `/api/v1/platform/...` route coverage
+  - Swagger path consistency checks
+- Covered Platform Administration routes for:
+  - companies list/detail/suspend/activate
+  - subscription plans list/create
+  - subscriptions list/create/update
+  - tenant switch create/end/list
+  - platform analytics overview/usage/top-companies/subscription-distribution
+  - platform settings placeholder list/update
+- Verified authorization matrix:
+  - Super Admin access succeeds.
+  - Company Admin is denied with HTTP 403.
+  - Manager is denied with HTTP 403.
+  - Employee is denied with HTTP 403.
+  - Anonymous requests are denied with HTTP 401.
+- Added explicit decorator regression checks for:
+  - `platform:read`
+  - `platform:manage`
+  - `analytics:read`
+  - `subscriptions:manage`
+  - `companies:suspend`
+  - `tenant_switch:execute`
+- Added switch-token and tenant-blocking security checks:
+  - active switch token works through a valid switch session.
+  - ended switch token is rejected.
+  - suspended tenant users are blocked.
+  - switching into a suspended company is rejected.
+- Hardened platform route dependency injection for the `tsx` runtime by adding explicit injection annotations to:
+  - `AuthController`
+  - `PlatformController`
+  - `PlatformService`
+  - `PlatformAdminGuard`
+- Added `companies:suspend` permission enforcement to company suspend and activate endpoints.
+- Fixed Swagger metadata for `UpdateCompanyStatusDto.reason`.
+- No Prisma migration was required.
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-security` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-management` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-subscriptions` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-switching` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-analytics` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tenant-isolation` passed.
+- Runtime check after Step 3:
+  - `http://127.0.0.1:3000/ar/login` returned HTTP 200.
+  - `http://127.0.0.1:4000/api/v1/health` returned HTTP 200.
+  - `http://127.0.0.1:4000/docs` returned HTTP 200.
+
+Next checkpoint:
+
+- Phase 4 Step 8 Super Admin Web Dashboard.
 
 ## Recent Fixes
 
@@ -1106,6 +1165,7 @@ corepack pnpm test:platform-subscriptions
 corepack pnpm test:platform-company-switching
 corepack pnpm test:platform-analytics
 corepack pnpm test:platform-usage-snapshots
+corepack pnpm test:platform-security
 ```
 
 Additional local smoke checks completed:
@@ -1179,3 +1239,4 @@ Recent completed commits:
 - `Implement Phase 4 company switching service`
 - `Implement Phase 4 platform analytics and usage metrics`
 - `Complete platform analytics snapshot pipeline and query optimization`
+- `Add platform endpoint authorization tests`

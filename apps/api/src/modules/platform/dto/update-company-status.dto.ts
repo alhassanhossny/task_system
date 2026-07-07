@@ -8,7 +8,7 @@ export class UpdateCompanyStatusDto {
   @IsEnum(CompanyStatus)
   status?: CompanyStatus;
 
-  @ApiPropertyOptional({ example: "Billing issue" })
+  @ApiPropertyOptional({ type: String, example: "Billing issue" })
   @IsOptional()
   @IsString()
   @MaxLength(500)

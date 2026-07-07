@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { BillingInterval, CompanyPlan, CompanyStatus, CompanySwitchStatus, EntityType, Prisma, SubscriptionStatus } from "@prisma/client";
 import { RequestUser } from "../../common/types/request-user";
@@ -132,8 +132,11 @@ type TopCompanyUsage = {
 @Injectable()
 export class PlatformService {
   constructor(
+    @Inject(PrismaService)
     private readonly prisma: PrismaService,
+    @Inject(DomainEventBus)
     private readonly eventBus: DomainEventBus,
+    @Inject(JwtService)
     private readonly jwt: JwtService
   ) {}
 

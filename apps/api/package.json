@@ -22,6 +22,7 @@
     "test:platform-company-switching": "tsx src/modules/platform/tests/platform-company-switching.test.ts",
     "test:platform-analytics": "tsx src/modules/platform/tests/platform-analytics.test.ts",
     "test:platform-usage-snapshots": "tsx src/modules/platform/tests/platform-usage-snapshot-worker.test.ts",
+    "test:platform-security": "tsx src/modules/platform/tests/platform-security.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
     "format": "prettier --write \"src/**/*.ts\" \"../../prisma/**/*.ts\"",

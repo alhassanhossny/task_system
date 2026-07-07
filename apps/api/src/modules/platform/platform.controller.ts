@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from "@nestjs/swagger";
 import { PERMISSIONS } from "../../common/constants";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
@@ -25,7 +25,7 @@ import { PlatformService } from "./platform.service";
 @UseGuards(PlatformAdminGuard)
 @Controller("platform")
 export class PlatformController {
-  constructor(private readonly platformService: PlatformService) {}
+  constructor(@Inject(PlatformService) private readonly platformService: PlatformService) {}
 
   @PlatformPermission(PERMISSIONS.platformRead)
   @ApiOperation({ summary: "List tenant companies" })
@@ -42,6 +42,7 @@ export class PlatformController {
   }
 
   @PlatformPermission(PERMISSIONS.platformManage)
+  @RequirePermissions(PERMISSIONS.companiesSuspend)
   @ApiOperation({ summary: "Suspend a tenant company" })
   @ApiParam({ name: "id", format: "uuid" })
   @ApiBody({ type: UpdateCompanyStatusDto, required: false })
@@ -51,6 +52,7 @@ export class PlatformController {
   }
 
   @PlatformPermission(PERMISSIONS.platformManage)
+  @RequirePermissions(PERMISSIONS.companiesSuspend)
   @ApiOperation({ summary: "Activate a tenant company" })
   @ApiParam({ name: "id", format: "uuid" })
   @ApiBody({ type: UpdateCompanyStatusDto, required: false })
