@@ -6,6 +6,11 @@ import { AuthService } from "./auth.service";
 
 interface JwtPayload {
   sub: string;
+  platformAdmin?: boolean;
+  switchSessionId?: string;
+  actingCompanyId?: string;
+  originalCompanyId?: string | null;
+  permissions?: string[];
 }
 
 @Injectable()
@@ -22,6 +27,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   validate(payload: JwtPayload) {
-    return this.authService.validateUser(payload.sub);
+    return this.authService.validateUser(payload.sub, payload);
   }
 }

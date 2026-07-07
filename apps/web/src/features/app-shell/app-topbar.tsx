@@ -6,6 +6,7 @@ import { Bell, Building2, ChevronDown, Globe, LogOut, Menu, Moon, Search, Sun } 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/features/auth/auth-store";
 import type { Lang, UiText } from "@/features/prototype/types";
+import { CommandPalette } from "@/features/search/command-palette";
 import { pageTitleFromPath } from "./nav";
 import { NotificationDropdown } from "./notification-dropdown";
 
@@ -25,6 +26,7 @@ export function AppTopbar({
   const { resolvedTheme, setTheme } = useTheme();
   const auth = useAuth();
   const [notifOpen, setNotifOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [themeMounted, setThemeMounted] = useState(false);
   const isDark = themeMounted && resolvedTheme === "dark";
   const title = pageTitleFromPath(pathname, t);
@@ -64,13 +66,21 @@ export function AppTopbar({
           <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
         </button>
 
-        <div className="relative hidden md:flex items-center">
-          <Search className="absolute start-3 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-          <input
-            placeholder={t.globalSearch}
-            className="ps-9 pe-4 py-2 w-64 rounded-xl border border-border bg-input-background text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:w-80 transition-all"
-          />
-        </div>
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="hidden md:flex items-center gap-2 ps-3 pe-4 py-2 w-64 rounded-xl border border-border bg-input-background text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <Search className="w-3.5 h-3.5" />
+          <span className="truncate">{t.globalSearch}</span>
+        </button>
+
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="md:hidden w-9 h-9 flex items-center justify-center rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+          aria-label={t.globalSearch}
+        >
+          <Search className="w-4.5 h-4.5" />
+        </button>
 
         <button
           onClick={() => setTheme(isDark ? "light" : "dark")}
@@ -117,6 +127,7 @@ export function AppTopbar({
         </button>
       </div>
 
+      <CommandPalette open={searchOpen} onOpen={() => setSearchOpen(true)} onClose={() => setSearchOpen(false)} t={t} lang={lang} />
     </header>
   );
 }

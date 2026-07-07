@@ -5,6 +5,7 @@ const STATUS_CFG: Record<string, { bg: string; text: string; arLabel: string; en
   assigned: { bg: "bg-blue-100 dark:bg-blue-900/50", text: "text-blue-700 dark:text-blue-300", arLabel: "مُعيَّن", enLabel: "Assigned" },
   inProgress: { bg: "bg-amber-100 dark:bg-amber-900/50", text: "text-amber-700 dark:text-amber-300", arLabel: "قيد التنفيذ", enLabel: "In Progress" },
   pending: { bg: "bg-purple-100 dark:bg-purple-900/50", text: "text-purple-700 dark:text-purple-300", arLabel: "معلق", enLabel: "Pending" },
+  info_requested: { bg: "bg-amber-100 dark:bg-amber-900/50", text: "text-amber-700 dark:text-amber-300", arLabel: "بانتظار معلومات", enLabel: "Info requested" },
   completed: { bg: "bg-green-100 dark:bg-green-900/50", text: "text-green-700 dark:text-green-300", arLabel: "مكتمل", enLabel: "Completed" },
   cancelled: { bg: "bg-red-100 dark:bg-red-900/50", text: "text-red-700 dark:text-red-300", arLabel: "ملغى", enLabel: "Cancelled" },
   approved: { bg: "bg-green-100 dark:bg-green-900/50", text: "text-green-700 dark:text-green-300", arLabel: "موافق عليه", enLabel: "Approved" },
@@ -26,6 +27,7 @@ const STATUS_ALIASES: Record<string, string> = {
   ASSIGNED: "assigned",
   IN_PROGRESS: "inProgress",
   PENDING: "pending",
+  INFO_REQUESTED: "info_requested",
   COMPLETED: "completed",
   CANCELLED: "cancelled"
 };

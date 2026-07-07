@@ -1,17 +1,23 @@
 # Progress Summary
 
-Last updated: 2026-06-30
+Last updated: 2026-07-07
 
 ## Current Status
 
-Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, and Phase 2B Leave Requests Core are implemented. The project now has two production-style business workflows using the shared SaaS infrastructure.
+Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, Phase 2B Leave Requests Core, Phase 2B.1 Leave Enhancements, Phase 2B.2 Manager Hierarchy & Team Management, Phase 2C Global Search & Productivity Layer, Phase 3 Email Center, and Phase 4 Step 8 Super Admin Web Dashboard are implemented.
 
 Current Git state:
 
-- Branch: `feature/leave-requests`
-- Base branch `main` includes merged Phase 2A through `56ef8d5 Update Phase 2A progress summary`.
-- Latest implementation commit: `c811b71 Implement Phase 2B leave requests`.
-- Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature/leave-requests`
+- Branch: `feature-super-admin-portal`
+- Base branch `main` includes merged Phase 2B through `f902ce7 Update Phase 2B progress summary`.
+- Latest implementation commit: `Implement Phase 2B.1 leave enhancements`.
+- Latest login fix commit: `925603c Fix local login CORS origins`.
+- Latest alignment commit: `Align time-off enhancements with Phase 2B.1 scope`.
+- Latest Phase 2B.2 work: `Implement Phase 2B.2 manager hierarchy and team management`.
+- Latest Phase 2C work: `Implement Phase 2C global search and productivity layer`.
+- Latest Phase 3 work: `Implement Phase 3 email center`.
+- Latest Phase 4 work: `Prepare v1.0.0-beta release baseline`.
+- Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature-super-admin-portal`
 
 The repository now contains:
 
@@ -21,6 +27,17 @@ The repository now contains:
 - `packages/types`: Shared TypeScript contracts.
 - `packages/config`: Roles, permissions, locales, and tenant constants.
 - `packages/shared`: Shared API response utilities.
+
+## Progress Update Rule
+
+After each completed development step, update this file before moving to the next step.
+
+Each update should include:
+
+- What changed.
+- Files, migrations, endpoints, or scripts added.
+- Validation run and whether it passed.
+- Any known follow-up or blocker.
 
 ## Implemented Foundation
 
@@ -140,6 +157,1103 @@ The repository now contains:
 - Replaced static Leave Requests UI with API-backed filters, request modal, approval/rejection actions, and detail timeline.
 - Added `test:leave-requests-core` regression coverage.
 
+## Implemented Phase 2B.1 Leave Enhancements
+
+- Promoted Time Off Requests into a fuller HR module without replacing the existing leave architecture.
+- Added leave duration support:
+  - full-day leave
+  - half-day leave with morning/afternoon period
+  - explicit half-day AM and half-day PM API duration values
+  - hourly permission requests
+- Added request metadata:
+  - `request_number`
+  - `request_type = LEAVE | PERMISSION`
+  - `start_time`
+  - `end_time`
+- Added `INFO_REQUESTED` leave status and manager/HR action:
+  - `POST /api/v1/leave-requests/:id/request-info`
+  - employee updates move the request back to pending review.
+- Added company leave settings:
+  - `leave_settings`
+  - `MANAGER_ONLY`
+  - `MANAGER_HR`
+- Updated `ApprovalWorkflowsService` so the default leave workflow is reconciled from company settings.
+- Added leave balance tracking:
+  - `leave_balances`
+  - allocated days
+  - used days
+  - remaining days
+  - year
+- Added leave balance API:
+  - `GET /api/v1/leave-balances/me`
+  - `GET /api/v1/leave-balances`
+  - `POST /api/v1/leave-balances`
+  - `PATCH /api/v1/leave-balances/:id`
+- Added leave settings API:
+  - `GET /api/v1/leave-settings`
+  - `PATCH /api/v1/leave-settings`
+- Added leave calendar and availability APIs:
+  - `GET /api/v1/leave-requests/calendar`
+  - `GET /api/v1/leave-requests/availability`
+  - `GET /api/v1/calendar/team`
+  - `GET /api/v1/calendar/department/:id`
+- Approval completion now deducts approved days from leave balance inside a database transaction.
+- Leave events now cover `LEAVE_INFO_REQUESTED`, balance allocation/update, and permission submit/approve/reject events while continuing to publish activity, audit, notification, and search updates through subscribers.
+- Added dedicated `LeaveBalancesService`, `LeaveBalancesController`, and `LeaveCalendarController` to match the Phase 2B.1 service boundaries.
+- Search indexing now includes request number, employee name, leave type, reason, and department data.
+- Seed data now includes:
+  - annual, sick, emergency, unpaid, half-day, permission, and work-from-home leave types
+  - leave balances for the sample employee
+  - configurable leave settings
+  - one pending leave request
+  - one approved leave request for calendar/availability widgets
+- Frontend Leave Requests page now includes:
+  - balance summary widgets
+  - remaining annual leave widget
+  - pending approvals widget
+  - team availability widget
+  - leave calendar preview
+  - workflow mode selector
+  - department filter
+  - duration controls in the request modal
+  - request-more-information action
+- Frontend Dashboard now includes API-backed time-off widgets:
+  - Remaining Annual Leave
+  - Pending Approvals
+  - Team Away Today
+  - Upcoming Team Absences
+- Added `test:leave-enhancements` regression coverage.
+- Added focused Phase 2B.1 test scripts:
+  - `test:leave-balances`
+  - `test:calendar`
+  - `test:permissions`
+
+## Implemented Phase 2B.2 Manager Hierarchy & Team Management
+
+Implemented and validated.
+
+Completed checkpoints:
+
+- Inspected existing Prisma user, task, leave request, leave balance, approval workflow, event, permission, seed, and frontend structures.
+- Confirmed Phase 2B.2 can extend the current architecture with a new team module instead of replacing existing Tasks or Leave Requests modules.
+- Added manager hierarchy schema work:
+  - `users.manager_id`
+  - Prisma `manager` and `directReports` self-relations
+  - manager lookup indexes
+  - no-self-manager database check
+- Added Phase 2B.2 migration:
+  - `20260701110000_phase_2b2_team_management`
+  - creates manager hierarchy schema changes
+  - seeds team permissions for existing companies
+  - assigns team permissions to Manager, Company Admin, and Super Admin roles
+- Added team permission constants and seed matrix entries.
+- Updated seed data so the sample employee reports to the sample manager.
+- Updated user creation/read support for `managerId` with tenant-scoped manager validation.
+- Added backend Team module:
+  - `TeamService`
+  - `TeamController`
+  - `TeamEventsHandler`
+  - `TeamModule`
+- Added team endpoints for members, member detail, dashboard, leave requests, pending approvals, team approvals/rejections, availability, leave balances, team tasks, and overdue team tasks.
+- Team approval endpoints enforce direct-report ownership before delegating to the existing leave approval workflow.
+- Added team domain events:
+  - `TEAM_LEAVE_APPROVED`
+  - `TEAM_LEAVE_REJECTED`
+  - `TEAM_MEMBER_ASSIGNED`
+- Team event subscriber writes activity, audit logs, optional notifications, and manager-enriched search index content through existing infrastructure.
+- Updated user creation to publish `TEAM_MEMBER_ASSIGNED` when a manager is assigned.
+- Updated Manager role permissions so existing Manager roles lose generic leave approve/reject access and use team-only approval permissions.
+- Added frontend Team module:
+  - `/team` App Router page
+  - `team-service.ts`
+  - `TeamView`
+  - Overview, Members, Leave Requests, Availability, and Tasks tabs
+  - manager approval/rejection actions
+  - responsive cards, filters, tables, loading states, error states, and empty states
+- Added Team to the HR sidebar navigation and page-title resolver.
+- Added Arabic and English `team` navigation labels.
+- Connected the main Dashboard time-off widgets to the team dashboard endpoint when the signed-in user has team permissions.
+- Added `test:team-management` regression coverage for:
+  - manager hierarchy
+  - direct-report filtering
+  - approval permissions
+  - tenant isolation
+  - team leave balances
+  - team availability
+  - team tasks
+  - manager dashboard data
+  - team search indexing side effects
+- Registered `test:team-management` in the API package and root package scripts.
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `prisma migrate deploy` applied `20260701110000_phase_2b2_team_management` successfully against the local PostgreSQL database.
+  - `corepack pnpm db:seed` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `corepack pnpm test:tenant-isolation` passed.
+  - `corepack pnpm test:leave-requests-core` passed.
+  - `corepack pnpm test:team-management` passed after rerunning outside the sandbox due to the known `tsx` IPC pipe restriction.
+
+Planned implementation checkpoints:
+
+- Phase 2B.2 is ready for review.
+
+## Implemented Phase 2C Global Search & Productivity Layer
+
+Implemented and validated.
+
+Completed checkpoints:
+
+- Switched to the existing `feature/global-search` branch.
+- Fast-forwarded `feature/global-search` to include the completed Phase 2B.1 and Phase 2B.2 commits before starting new work.
+- Inspected the existing SearchIndexer, `search_index` schema, permission constants, seed permissions, and topbar search UI.
+- Added Phase 2C database layer:
+  - `saved_filters`
+  - `recent_searches`
+  - Prisma Company/User relations
+  - shared `SavedFilterDraft` and `RecentSearchDraft` types
+- Added migration `20260701130000_phase_2c_global_search`.
+- Added saved-filter permissions:
+  - `saved_filters:read`
+  - `saved_filters:write`
+- Updated API constants, shared config constants, seed permission rows, and role matrices for saved filters.
+- Added unified search API layer:
+  - `GET /api/v1/search`
+  - `GET /api/v1/search/recent`
+  - `SearchService`
+  - weighted ranking logic
+  - tenant isolation
+  - entity-level permission filtering
+  - recent-search persistence with a 20-item per-user limit
+- Added saved filter API layer:
+  - `GET /api/v1/saved-filters`
+  - `POST /api/v1/saved-filters`
+  - `PATCH /api/v1/saved-filters/:id`
+  - `DELETE /api/v1/saved-filters/:id`
+  - `SavedFiltersService`
+- Wired SearchController, SavedFiltersController, SearchService, and SavedFiltersService into the existing SearchModule without replacing SearchIndexer.
+- Improved search index coverage:
+  - task indexes now include recent comments and attachment metadata
+  - leave request indexes now include recent comments and attachment metadata
+  - user creation indexes name, email, job title, department, and manager metadata
+  - department creation indexes name, code, description, and manager metadata
+  - seed data now backfills user, department, and leave request search indexes
+  - seeded task indexes now include assignee and department metadata
+- Added frontend global command palette:
+  - topbar search button opens the modal
+  - Ctrl/Cmd+K opens the modal
+  - instant API-backed search
+  - entity type filters
+  - grouped results
+  - keyboard navigation
+  - recent searches
+  - saved filters
+  - built-in task and leave presets
+  - loading, empty, and error states
+  - responsive modal layout with Arabic RTL and English LTR support
+- Added frontend search API service for search, recent searches, and saved filters.
+- Updated Task List and Leave Requests pages to initialize filters from URL query parameters so presets and saved filters navigate into filtered views.
+- Added `test:global-search` regression coverage for:
+  - tenant isolation
+  - entity-level permission filtering
+  - ranking
+  - saved filters
+  - recent searches
+  - command-palette API usage
+- Registered `test:global-search` in the API package and root package scripts.
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `prisma migrate deploy` applied `20260701130000_phase_2c_global_search` successfully against the local PostgreSQL database.
+  - `corepack pnpm db:seed` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `corepack pnpm test:tenant-isolation` passed.
+  - `corepack pnpm test:global-search` passed after rerunning outside the sandbox due to the known `tsx` IPC pipe restriction.
+
+Planned implementation checkpoints:
+
+- Phase 2C is ready for review.
+
+## Implemented Phase 3 Email Center
+
+Implemented and validated.
+
+Completed checkpoints:
+
+- Created branch `feature/email-center` from the completed Phase 2C work.
+- Inspected existing SMTP settings, BullMQ queue wrappers, EmailProvider/SmtpProvider abstraction, DomainEventBus subscribers, attachments, search indexing, permissions, seed data, and the prototype Email UI.
+- Confirmed Phase 3 will extend the existing `EmailMessage` prototype into a tenant-scoped Email Center rather than creating a parallel system.
+- Added Phase 3 database layer:
+  - `emails`
+  - `email_recipients`
+  - `email_templates`
+  - `email_attachments`
+  - `EmailStatus`
+  - `EmailRecipientKind`
+  - `EmailRecipientType`
+- Added migration `20260701150000_phase_3_email_center`.
+- Added email permissions:
+  - `emails:read`
+  - `emails:create`
+  - `emails:update`
+  - `emails:delete`
+  - `emails:send`
+  - `email_templates:read`
+  - `email_templates:write`
+- Updated API constants, shared config constants, seed permission rows, role permission matrix, and seeded system templates.
+- Added backend Email Center module:
+  - `EmailsModule`
+  - `EmailsController`
+  - `EmailTemplatesController`
+  - `EmailsService`
+  - `EmailTemplatesService`
+  - `EmailWorker`
+  - `EmailEventsHandler`
+- Added queue-based email status flow:
+  - `DRAFT`
+  - `QUEUED`
+  - `SENDING`
+  - `SENT`
+  - `FAILED`
+  - `CANCELLED`
+- Implemented SMTP provider delivery through existing encrypted company SMTP settings, with test-only mock delivery mode.
+- Added Email domain events:
+  - `EMAIL_CREATED`
+  - `EMAIL_UPDATED`
+  - `EMAIL_QUEUED`
+  - `EMAIL_SENT`
+  - `EMAIL_FAILED`
+  - `EMAIL_CANCELLED`
+  - `EMAIL_RETRIED`
+  - `EMAIL_DELETED`
+  - `EMAIL_ATTACHMENT_ADDED`
+- Email event subscribers now create activities, audit logs, notifications, and search indexes.
+- Extended global search to include `EMAIL` results with `emails:read` permission filtering.
+- Backend validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `corepack pnpm typecheck` passed.
+- Replaced prototype Email UI with API-backed Email Center:
+  - `/email` status tabs for inbox, sent, drafts, queued, failed, and templates
+  - compose modal
+  - employee and external recipients
+  - TO / CC / BCC
+  - template selector
+  - attachment metadata
+  - queue send, retry, cancel, edit, and delete actions
+  - template creation and custom template deletion
+  - responsive Arabic RTL and English LTR layout
+- Extended command palette filters and result rendering to support `EMAIL`.
+- Frontend validation checkpoint:
+  - `corepack pnpm typecheck` passed.
+- Added `test:email-center` regression coverage for:
+  - email creation
+  - template rendering
+  - queue processing
+  - SMTP provider integration
+  - status transitions
+  - retries
+  - tenant isolation
+  - search indexing
+  - permission filtering
+- Updated tenant isolation regression coverage to use the new production `emails` table.
+- Final validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `prisma migrate deploy` applied `20260701150000_phase_3_email_center` successfully against the local PostgreSQL database.
+  - `corepack pnpm db:seed` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `corepack pnpm test:tenant-isolation` passed.
+  - `corepack pnpm test:email-center` passed after rerunning outside the sandbox due to the known `tsx` IPC pipe restriction.
+  - `corepack pnpm test:global-search` passed.
+
+Follow-up work:
+
+- Real binary file upload/streaming for email attachments once the StorageProvider grows read/write object methods.
+- Optional inbound mailbox ingestion if Inbox becomes a true received-mail workflow.
+- Super Admin SaaS portal should be the next major branch after review.
+
+## In Progress Phase 4 Super Admin SaaS Portal
+
+Current checkpoint: Platform Analytics Improvements Step 3 Endpoint-Level Authorization Tests completed.
+
+Completed checkpoints:
+
+- Created branch `feature-super-admin-portal` from the completed Phase 3 Email Center work.
+- Inspected existing Prisma schema, UUID conventions, migration style, multi-tenant relations, audit/activity/search tables, company model, role/permission model, and recent Phase 2C/Phase 3 migrations.
+- Added Phase 4 enum layer:
+  - `SubscriptionStatus`
+  - `BillingInterval`
+  - `SubscriptionInvoiceStatus`
+  - `CompanySwitchStatus`
+  - `PlatformSettingValueType`
+- Extended `companies` for SaaS administration:
+  - `primary_domain`
+  - `billing_email`
+  - `support_email`
+  - `timezone`
+  - `trial_ends_at`
+  - `suspended_at`
+- Added Phase 4 database models:
+  - `subscription_plans`
+  - `company_subscriptions`
+  - `subscription_invoices`
+  - `platform_usage_snapshots`
+  - `company_switch_sessions`
+  - `platform_settings`
+- Added migration `20260701170000_phase_4_super_admin_schema`.
+- Kept this milestone database-only:
+  - no permissions
+  - no seed permission changes
+  - no backend services
+  - no controllers
+  - no frontend changes
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `prisma migrate deploy` applied `20260701170000_phase_4_super_admin_schema` successfully against the local PostgreSQL database.
+  - `corepack pnpm db:seed` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+
+- Step 2 Super Admin permissions was completed as a permission and authorization scaffolding-only milestone.
+
+Completed Step 2 checkpoints:
+
+- Added platform-level permission constants in the API and shared config:
+  - `platform:read`
+  - `platform:manage`
+- Added company administration permission constants:
+  - `companies:create`
+  - `companies:update`
+  - `companies:suspend`
+- Added subscription permission constants:
+  - `subscriptions:read`
+  - `subscriptions:manage`
+- Added platform settings permission constants:
+  - `platform_settings:read`
+  - `platform_settings:update`
+- Added usage analytics permission constant:
+  - `analytics:read`
+- Added tenant switching permission constant:
+  - `tenant_switch:execute`
+- Updated Prisma seed permission records for all new Phase 4 permission keys.
+- Replaced the Company Admin wildcard permission assignment with an explicit tenant-admin permission matrix.
+- Kept all new platform and SaaS administration permissions Super Admin-only.
+- Added a seed safeguard that soft-deletes Super Admin-only permissions from non-Super-Admin roles if they ever exist from previous seed runs.
+- Kept this milestone permission-only:
+  - no controllers
+  - no services
+  - no endpoints
+  - no frontend pages
+  - no navigation changes
+  - no business seed data
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `corepack pnpm db:seed` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+
+- Step 3 Super Admin backend module skeleton was completed without business logic.
+
+Completed Step 3 checkpoints:
+
+- Added isolated Platform Administration backend module under `apps/api/src/modules/platform`.
+- Registered `PlatformModule` in the API application module.
+- Added platform authorization scaffolding:
+  - `PlatformAdminGuard`
+  - `@PlatformPermission()` decorator
+  - platform-only permission validation for `platform:read` and `platform:manage`
+- Added Platform DTO layer for:
+  - companies
+  - subscriptions
+  - analytics
+  - platform settings
+  - tenant switching
+- Added `PlatformService` skeleton methods with typed placeholder responses only:
+  - `listCompanies()`
+  - `getCompany()`
+  - `suspendCompany()`
+  - `activateCompany()`
+  - `listPlans()`
+  - `listSubscriptions()`
+  - `createSubscription()`
+  - `updateSubscription()`
+  - `getPlatformOverview()`
+  - `getUsageMetrics()`
+  - `listSettings()`
+  - `updateSetting()`
+  - `createSwitchSession()`
+  - `listSwitchSessions()`
+- Added Platform controller route skeletons under `/api/v1/platform`:
+  - `GET /api/v1/platform/companies`
+  - `GET /api/v1/platform/companies/:id`
+  - `POST /api/v1/platform/companies/:id/suspend`
+  - `POST /api/v1/platform/companies/:id/activate`
+  - `GET /api/v1/platform/subscriptions`
+  - `GET /api/v1/platform/plans`
+  - `POST /api/v1/platform/subscriptions`
+  - `PATCH /api/v1/platform/subscriptions/:id`
+  - `GET /api/v1/platform/analytics/overview`
+  - `GET /api/v1/platform/analytics/usage`
+  - `GET /api/v1/platform/settings`
+  - `PATCH /api/v1/platform/settings/:id`
+  - `POST /api/v1/platform/switch-company`
+  - `GET /api/v1/platform/switch-sessions`
+- Added Swagger grouping under `Platform Administration`.
+- Added platform event constants only:
+  - `PLATFORM_COMPANY_SUSPENDED`
+  - `PLATFORM_COMPANY_ACTIVATED`
+  - `PLATFORM_SUBSCRIPTION_CREATED`
+  - `PLATFORM_SUBSCRIPTION_UPDATED`
+  - `PLATFORM_SETTING_UPDATED`
+  - `PLATFORM_SWITCH_CREATED`
+- Kept this milestone skeleton-only:
+  - no Prisma database operations
+  - no company CRUD implementation
+  - no subscription CRUD implementation
+  - no analytics aggregation
+  - no usage snapshot generation
+  - no tenant switching execution
+  - no platform settings persistence
+  - no frontend changes
+  - no search indexing
+  - no audit logging
+  - no notifications
+- Validation checkpoint:
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+
+- Step 4 Company Management APIs was completed as a company administration-only milestone.
+
+Completed Step 4 checkpoints:
+
+- Implemented Prisma-backed Platform company management APIs:
+  - `listCompanies()`
+  - `getCompany()`
+  - `suspendCompany()`
+  - `activateCompany()`
+- Added company list pagination, status/plan filters, and search across:
+  - company name
+  - primary domain
+  - billing email
+- Added company detail payload with:
+  - company summary
+  - latest subscription
+  - users count
+  - departments count
+  - tasks count
+  - attachment storage usage
+  - last activity timestamp
+- Updated suspend flow:
+  - sets `status = SUSPENDED`
+  - sets `suspended_at`
+  - writes `COMPANY_SUSPENDED` audit log
+  - publishes `PLATFORM_COMPANY_SUSPENDED`
+- Updated activate flow:
+  - sets `status = ACTIVE`
+  - clears `suspended_at`
+  - writes `COMPANY_ACTIVATED` audit log
+  - publishes `PLATFORM_COMPANY_ACTIVATED`
+- Added suspended-company access enforcement:
+  - login and refresh are denied for suspended tenants
+  - tenant API requests are blocked when `company.suspended_at` is present
+  - platform administration routes remain available for platform permission checks
+- Kept this milestone company-management-only:
+  - no subscription management implementation
+  - no billing calculations
+  - no invoice generation
+  - no analytics aggregation
+  - no usage snapshot generation
+  - no tenant switching execution
+  - no platform settings persistence
+  - no frontend changes
+  - no search indexing
+  - no notifications
+- Added regression script:
+  - `test:platform-company-management`
+- Added regression coverage for:
+  - platform permission enforcement
+  - company listing
+  - company detail retrieval
+  - suspend company
+  - activate company
+  - suspended tenant login/API blocking
+  - tenant isolation preservation
+  - audit creation
+  - domain event publishing
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tenant-isolation` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-management` passed after rerunning outside the sandbox due to the known `tsx` IPC pipe restriction.
+
+- Step 5 Subscription and billing management APIs was completed as a manual subscription administration milestone.
+
+Completed Step 5 checkpoints:
+
+- Implemented Prisma-backed subscription plan APIs:
+  - `GET /api/v1/platform/plans`
+  - `POST /api/v1/platform/plans`
+- Implemented Prisma-backed company subscription APIs:
+  - `GET /api/v1/platform/subscriptions`
+  - `POST /api/v1/platform/subscriptions`
+  - `PATCH /api/v1/platform/subscriptions/:id`
+- Added DTOs for:
+  - listing subscription plans
+  - creating subscription plans
+  - creating subscriptions with numeric seat coercion
+  - updating subscriptions with numeric seat coercion
+- Added plan list pagination, tier filters, active/inactive filters, and search across:
+  - plan code
+  - plan name
+- Added subscription list pagination and filters for:
+  - company
+  - plan
+  - status
+  - billing interval
+- Added manual plan creation with:
+  - tier
+  - monthly/yearly price
+  - currency normalization
+  - limits
+  - feature JSON
+  - active/inactive status
+- Added subscription create/update behavior for:
+  - trialing subscriptions
+  - active subscriptions
+  - cancelled subscriptions
+  - expired status updates
+  - billing interval changes
+  - seat changes
+  - plan upgrades/downgrades
+- Company plan tier now follows the assigned subscription plan tier on subscription create/update.
+- Subscription list responses include related company, plan, and invoice count for manual billing visibility.
+- Added audit logging for:
+  - `SUBSCRIPTION_PLAN_CREATED`
+  - `SUBSCRIPTION_CREATED`
+  - `SUBSCRIPTION_UPDATED`
+- Published domain events for:
+  - `PLATFORM_SUBSCRIPTION_CREATED`
+  - `PLATFORM_SUBSCRIPTION_UPDATED`
+- Added subscription endpoint permission checks using:
+  - `subscriptions:read`
+  - `subscriptions:manage`
+  alongside platform-level access checks.
+- Kept this milestone subscription-management-only:
+  - no payment provider integration
+  - no automatic invoice generation
+  - no billing calculations beyond stored plan prices
+  - no analytics aggregation
+  - no usage snapshot generation
+  - no tenant switching execution
+  - no platform settings persistence
+  - no frontend changes
+  - no notifications
+- Added regression script:
+  - `test:platform-subscriptions`
+- Added regression coverage for:
+  - plan creation
+  - duplicate plan validation
+  - plan filtering
+  - inactive plan rejection for new subscriptions
+  - subscription creation
+  - subscription updates
+  - cancellation timestamps
+  - invoice count visibility
+  - tenant isolation preservation
+  - audit creation
+  - domain event publishing
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tenant-isolation` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-management` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-subscriptions` passed after rerunning outside the sandbox due to the known `tsx` IPC pipe restriction.
+
+- Step 6 Company Switching Service was completed as the Super Admin tenant impersonation milestone.
+
+Completed Step 6 checkpoints:
+
+- Implemented Prisma-backed tenant switch APIs:
+  - `POST /api/v1/platform/switch-company`
+  - `GET /api/v1/platform/switch-sessions`
+  - `POST /api/v1/platform/switch-company/:sessionId/end`
+- Added switch session query DTO with filters for:
+  - status
+  - company
+  - actor user
+  - pagination
+- Added switch session creation with:
+  - target company validation
+  - suspended company rejection
+  - duplicate active session rejection for the same admin/company pair
+  - default 8-hour expiration
+  - optional explicit future expiration
+  - metadata storage
+- Added impersonation JWT generation with:
+  - `platformAdmin`
+  - `switchSessionId`
+  - `actingCompanyId`
+  - `originalCompanyId`
+  - platform permissions snapshot
+  - token expiry aligned to switch session expiry
+- Updated JWT validation so switch tokens require:
+  - active switch session
+  - matching actor user
+  - matching acting company
+  - non-expired session
+  - non-ended and non-revoked session
+  - non-suspended target company
+- Updated tenant resolution so `actingCompanyId` takes precedence over the original user company.
+- Prevented request header tenant override while a switch session is active.
+- Added switch session ending:
+  - sets `status = ENDED`
+  - sets `ended_at`
+  - rejects already ended/expired/revoked sessions
+- Added automatic active-session expiration during switch reads and validation.
+- Added audit logging for:
+  - `COMPANY_SWITCH_STARTED`
+  - `COMPANY_SWITCH_ENDED`
+- Published domain events for:
+  - `PLATFORM_SWITCH_CREATED`
+  - `PLATFORM_SWITCH_ENDED`
+- Added switch endpoint permission checks using:
+  - `tenant_switch:execute`
+  alongside platform-level access checks.
+- Kept this milestone switching-only:
+  - no frontend company switcher implementation
+  - no analytics aggregation
+  - no usage snapshot generation
+  - no platform settings persistence
+  - no search indexing
+  - no notifications
+- Added regression script:
+  - `test:platform-company-switching`
+- Added regression coverage for:
+  - permission enforcement
+  - switch session creation
+  - token payload generation
+  - tenant resolution through `actingCompanyId`
+  - session listing
+  - session ending
+  - expiration handling
+  - suspended company rejection
+  - duplicate active session rejection
+  - tenant isolation preservation
+  - audit creation
+  - domain event publishing
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tenant-isolation` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-management` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-subscriptions` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-switching` passed after rerunning outside the sandbox due to the known `tsx` IPC pipe restriction.
+
+Next checkpoint:
+
+- Step 7 Platform Analytics and Usage Metrics was completed as an analytics-only Super Admin reporting milestone.
+
+Completed Step 7 checkpoints:
+
+- Replaced platform analytics placeholder methods with Prisma-backed implementations:
+  - `getPlatformOverview()`
+  - `getUsageMetrics()`
+  - `getTopCompanies()`
+  - `getSubscriptionDistribution()`
+- Added analytics endpoints under `/api/v1/platform`:
+  - `GET /api/v1/platform/analytics/overview`
+  - `GET /api/v1/platform/analytics/usage`
+  - `GET /api/v1/platform/analytics/top-companies`
+  - `GET /api/v1/platform/analytics/subscription-distribution`
+- Added analytics query range support for:
+  - `7d`
+  - `30d`
+  - `90d`
+  - `365d`
+- Overview analytics now report:
+  - total, active, suspended, and trialing companies
+  - total, active, expired, and cancelled subscriptions
+  - total users
+  - total tasks, leave requests, emails, and attachments
+- Usage metrics now read `platform_usage_snapshots` for chart-ready daily series:
+  - companies
+  - users
+  - tasks
+  - emails sent
+- Added `PlatformUsageSnapshotsService` for:
+  - daily snapshot generation
+  - per-company metric collection
+  - idempotent upsert by company/day
+  - storage byte aggregation from attachments
+  - subscription plan metadata capture
+- Added BullMQ queue scaffold:
+  - queue name `platform-usage-snapshot`
+  - job name `generate-daily`
+  - daily repeat pattern `0 1 * * *`
+- Added platform usage snapshot event:
+  - `PLATFORM_USAGE_SNAPSHOT_CREATED`
+- Added manual snapshot audit action:
+  - `USAGE_SNAPSHOT_GENERATED`
+- Added analytics endpoint permission checks using:
+  - `analytics:read`
+  alongside platform-level `platform:read`.
+- Kept this milestone analytics-only:
+  - no frontend dashboard implementation
+  - no billing automation
+  - no invoice generation
+  - no platform settings persistence
+  - no tenant switching changes
+  - no notifications
+  - no search indexing
+- Added regression script:
+  - `test:platform-analytics`
+- Added regression coverage for:
+  - platform overview counts
+  - soft-deleted company/entity exclusion
+  - subscription status counting
+  - usage range aggregation
+  - daily snapshot creation
+  - duplicate-day prevention
+  - storage byte calculations
+  - top company usage reporting
+  - subscription distribution reporting
+  - Super Admin analytics permission enforcement
+  - intentional cross-tenant platform reporting
+- Added root `AGENTS.md` with another-machine development instructions:
+  - setup steps
+  - validation commands
+  - platform test commands
+  - architecture rules
+  - current Phase 4 status
+  - Git and remote safety notes
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tenant-isolation` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-management` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-subscriptions` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-switching` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-analytics` passed after rerunning outside the sandbox due to the known `tsx` IPC pipe restriction.
+
+- Platform Analytics Improvements Step 1 completed the usage snapshot pipeline hardening after Phase 4 Step 7 review.
+
+Completed Platform Analytics Improvements Step 1 checkpoints:
+
+- Added a BullMQ processor for the platform usage snapshot queue:
+  - `PlatformUsageSnapshotWorker`
+  - queue: `platform-usage-snapshot`
+  - job: `generate-daily`
+- Registered the worker in `PlatformModule`.
+- Imported `QueuesModule` into `PlatformModule` so the platform worker uses the registered BullMQ queue.
+- Updated `PlatformUsageSnapshotQueue` to register the daily job during application bootstrap.
+- Replaced repeated ad hoc scheduling with BullMQ `upsertJobScheduler()` using a stable scheduler id:
+  - `platform-usage-snapshot:daily`
+- Kept the daily schedule persistent and restart-safe:
+  - cron pattern `0 1 * * *`
+  - same scheduler id reused on each bootstrap
+- Added retry handling for scheduled and manual snapshot jobs:
+  - 3 attempts
+  - exponential backoff
+  - 5000 ms initial delay
+  - completed/failed job retention limits
+- Added logging for:
+  - scheduler registration
+  - worker job start
+  - worker job completion
+  - ignored unknown jobs
+  - failed jobs
+  - scheduler registration failure
+- Kept bootstrap scheduler failures non-fatal so a transient Redis issue does not crash the API process.
+- Added manual snapshot enqueue support with stable date-based job ids when a date is provided.
+- Added regression script:
+  - `test:platform-usage-snapshots`
+- Added worker and scheduler regression coverage for:
+  - stable scheduler id
+  - repeat cron registration
+  - retry/backoff options
+  - manual enqueue options
+  - graceful scheduler registration failure
+  - unknown job handling
+  - invalid date rejection
+  - worker failure propagation for BullMQ retries
+  - successful worker processing
+  - database snapshot creation
+  - `/analytics/usage` service data population after worker execution
+- Environment note:
+  - project test PostgreSQL and Redis containers were restarted:
+    - `taskflow-postgres-test` on `127.0.0.1:5433`
+    - `taskflow-redis-test` on `127.0.0.1:6379`
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm --filter @taskflow/api exec prisma migrate deploy --schema prisma/schema.prisma` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm db:seed` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-analytics` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-usage-snapshots` passed.
+
+Next checkpoint:
+
+- Platform Analytics Improvements Step 2 Query Optimization completed after the usage snapshot worker pipeline.
+
+Completed Platform Analytics Improvements Step 2 checkpoints:
+
+- Optimized platform analytics and usage snapshot queries without changing API response shapes, DTOs, route paths, permission checks, tenant isolation, audit logging, or queue behavior.
+- Replaced repeated overview status counts with grouped aggregates:
+  - companies grouped by status
+  - subscriptions grouped by status
+- Replaced `/api/v1/platform/analytics/usage` snapshot row loading with a grouped aggregate by `period_start`.
+- Optimized top-company analytics by replacing per-company count loops with grouped aggregate queries for:
+  - users by company
+  - tasks by company
+  - emails by company
+  - attachment storage by company
+  - active subscription plan lookup
+- Optimized daily snapshot generation by collecting company metrics in batches instead of querying each company individually.
+- Refactored `PlatformUsageSnapshotsService.collectCompanyMetrics()` to preserve its public behavior while delegating to the grouped batch collector.
+- Kept snapshot generation idempotent through the existing `platform_usage_snapshots` unique upsert.
+- Extended analytics regression coverage for:
+  - grouped aggregation correctness across multiple companies
+  - unchanged usage response values
+  - snapshot generation accuracy for each tenant
+  - public collector compatibility
+  - larger snapshot datasets in the worker pipeline
+- No Prisma migration was required.
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-analytics` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-usage-snapshots` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tenant-isolation` passed.
+- Runtime check after Step 2:
+  - `http://127.0.0.1:3000/ar/login` returned HTTP 200.
+  - `http://127.0.0.1:4000/api/v1/health` returned HTTP 200.
+  - `http://127.0.0.1:4000/docs` returned HTTP 200.
+
+Next checkpoint:
+
+- Platform Analytics Improvements Step 3 Endpoint-Level Authorization Tests completed.
+
+Completed Platform Analytics Improvements Step 3 checkpoints:
+
+- Added dedicated endpoint-level Platform Administration security regression coverage:
+  - `test:platform-security`
+  - real Nest HTTP server
+  - versioned `/api/v1/platform/...` route coverage
+  - Swagger path consistency checks
+- Covered Platform Administration routes for:
+  - companies list/detail/suspend/activate
+  - subscription plans list/create
+  - subscriptions list/create/update
+  - tenant switch create/end/list
+  - platform analytics overview/usage/top-companies/subscription-distribution
+  - platform settings placeholder list/update
+- Verified authorization matrix:
+  - Super Admin access succeeds.
+  - Company Admin is denied with HTTP 403.
+  - Manager is denied with HTTP 403.
+  - Employee is denied with HTTP 403.
+  - Anonymous requests are denied with HTTP 401.
+- Added explicit decorator regression checks for:
+  - `platform:read`
+  - `platform:manage`
+  - `analytics:read`
+  - `subscriptions:manage`
+  - `companies:suspend`
+  - `tenant_switch:execute`
+- Added switch-token and tenant-blocking security checks:
+  - active switch token works through a valid switch session.
+  - ended switch token is rejected.
+  - suspended tenant users are blocked.
+  - switching into a suspended company is rejected.
+- Hardened platform route dependency injection for the `tsx` runtime by adding explicit injection annotations to:
+  - `AuthController`
+  - `PlatformController`
+  - `PlatformService`
+  - `PlatformAdminGuard`
+- Added `companies:suspend` permission enforcement to company suspend and activate endpoints.
+- Fixed Swagger metadata for `UpdateCompanyStatusDto.reason`.
+- No Prisma migration was required.
+- Validation checkpoint:
+  - `corepack pnpm db:generate` passed.
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-security` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-management` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-subscriptions` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-switching` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-analytics` passed.
+  - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tenant-isolation` passed.
+- Runtime check after Step 3:
+  - `http://127.0.0.1:3000/ar/login` returned HTTP 200.
+  - `http://127.0.0.1:4000/api/v1/health` returned HTTP 200.
+  - `http://127.0.0.1:4000/docs` returned HTTP 200.
+
+Completed Phase 4 Step 8 Super Admin Web Dashboard checkpoints:
+
+- Added a Platform Administration frontend area using the existing authenticated app shell, `next-intl` locale shell, theme, API client, permissions, and React Query patterns.
+- Added permission-gated sidebar navigation:
+  - Platform Dashboard
+  - Companies
+  - Subscriptions
+  - Plans
+  - Analytics
+  - Settings
+  - Switch Sessions
+- Platform navigation is hidden unless the signed-in user has `platform:read`.
+- Platform actions are permission-gated for:
+  - `platform:manage`
+  - `companies:suspend`
+  - `subscriptions:manage`
+  - `tenant_switch:execute`
+  - `analytics:read`
+  - `platform_settings:update`
+- Added frontend platform API service:
+  - analytics overview, usage, top companies, and subscription distribution
+  - company list/detail/suspend/activate
+  - subscription list/create/update
+  - plan list/create
+  - platform settings list/update
+  - switch session list/create/end
+- Added Platform Dashboard UI:
+  - total/active/suspended/trial company cards
+  - total users/tasks/leave requests/emails cards
+  - usage charts
+  - subscription distribution
+  - top companies table
+- Added Companies UI:
+  - server pagination
+  - search
+  - status and plan filters
+  - company table
+  - details drawer
+  - suspend/activate confirmation actions
+- Added Subscriptions UI:
+  - company, plan, status, and billing interval filters
+  - subscription table
+  - create/edit subscription modal
+- Added Plans UI:
+  - plan filters
+  - plan table
+  - create plan dialog with features/limits JSON inputs
+- Added Analytics UI:
+  - dedicated range selector for 7d, 30d, 90d, and 365d
+  - overview cards
+  - growth charts
+  - subscription distribution
+  - top companies table
+- Added Settings UI:
+  - settings table
+  - update setting dialog using the existing platform settings endpoint
+- Added Switch Sessions UI:
+  - session table
+  - create switch session dialog
+  - end session confirmation
+  - impersonation token warning panel
+  - copy token action
+  - open company button without replacing the current login session
+- Added Arabic and English navigation labels for Platform pages.
+- Added route files:
+  - `apps/web/src/app/[locale]/(app)/platform/page.tsx`
+  - `apps/web/src/app/[locale]/(app)/platform/companies/page.tsx`
+  - `apps/web/src/app/[locale]/(app)/platform/subscriptions/page.tsx`
+  - `apps/web/src/app/[locale]/(app)/platform/plans/page.tsx`
+  - `apps/web/src/app/[locale]/(app)/platform/analytics/page.tsx`
+  - `apps/web/src/app/[locale]/(app)/platform/settings/page.tsx`
+  - `apps/web/src/app/[locale]/(app)/platform/switch-sessions/page.tsx`
+- Added feature files:
+  - `apps/web/src/features/platform/platform-service.ts`
+  - `apps/web/src/features/platform/platform-access.ts`
+  - `apps/web/src/features/platform/platform-view.tsx`
+- Added `test:platform-dashboard` static frontend regression coverage for:
+  - route files
+  - Platform navigation visibility wiring
+  - permission constants
+  - Platform API integrations
+  - dashboard sections
+  - loading, error, empty, and permission denied states
+  - company suspend/activate actions
+  - subscription creation
+  - plan creation
+  - switch session token handling
+- No Prisma migration or backend API change was required.
+- Validation checkpoint:
+  - `corepack pnpm typecheck` passed.
+  - `corepack pnpm lint` passed.
+  - `corepack pnpm test:platform-dashboard` passed.
+- Runtime route checks returned HTTP 200:
+  - `http://127.0.0.1:3000/ar/platform`
+  - `http://127.0.0.1:3000/ar/platform/companies`
+  - `http://127.0.0.1:3000/ar/platform/subscriptions`
+  - `http://127.0.0.1:3000/ar/platform/plans`
+  - `http://127.0.0.1:3000/ar/platform/analytics`
+  - `http://127.0.0.1:3000/ar/platform/settings`
+  - `http://127.0.0.1:3000/ar/platform/switch-sessions`
+
+Next checkpoint:
+
+- Pending review before any next Phase 4 scope.
+
+## v1.0.0-beta Release Baseline
+
+Prepared locally on 2026-07-07.
+
+Completed checkpoints:
+
+- Added `CHANGELOG.md` with production-ready v1.0.0-beta release notes.
+- Documented the beta release scope:
+  - completed SaaS foundation
+  - Tasks
+  - Leave and Time-Off Management
+  - Team Management
+  - Global Search
+  - Email Center
+  - Super Admin Platform backend
+  - Super Admin Web Dashboard
+- Documented migration-freeze policy:
+  - existing Prisma migrations are frozen after the beta tag
+  - do not edit existing migrations after tagging
+  - add new migrations only for approved Phase 5 work or critical fixes
+- Updated `AGENTS.md` so another machine treats `v1.0.0-beta` as the stable baseline.
+- Fixed deterministic search enrichment before release:
+  - leave request search indexing now includes manager name and email
+  - prevents team approval search metadata from being lost when leave and team event subscribers update the same leave request search record in different orders
+- No Prisma migration was required.
+
+Full local validation checkpoint:
+
+- `corepack pnpm db:generate` passed.
+- `corepack pnpm typecheck` passed.
+- `corepack pnpm lint` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tenant-isolation` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tasks-core` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:leave-requests-core` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:leave-enhancements` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:leave-balances` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:calendar` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:permissions` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:team-management` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:global-search` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:email-center` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-management` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-subscriptions` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-switching` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-analytics` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-usage-snapshots` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-security` passed.
+- `corepack pnpm test:platform-dashboard` passed.
+
+Release actions:
+
+- `feature-super-admin-portal` is ready to merge into `main`.
+- `v1.0.0-beta` should be created on `main` after the release-prep commit is merged.
+- Remote push and CI verification still require GitHub credentials on the machine.
+
 ## Recent Fixes
 
 - Added locale root redirects:
@@ -156,6 +1270,13 @@ The repository now contains:
 - Added pre-Phase-2 hardening for tenant isolation, permission matrix, queues, storage, events, email provider, search indexer, and API v1 routing.
 - Implemented Phase 2A Task Core backend and frontend.
 - Implemented Phase 2B Leave Requests Core backend and frontend.
+- Implemented Phase 2B.1 Leave Enhancements for balances, workflow settings, request-info, calendar, and availability.
+- Fixed browser login `Failed to fetch` caused by CORS origin mismatch when opening the app with `127.0.0.1` instead of `localhost`.
+- Updated API CORS to accept comma-separated `WEB_ORIGIN` values and added local defaults for:
+  - `http://localhost:3000`
+  - `http://127.0.0.1:3000`
+  - `http://0.0.0.0:3000`
+- Added `WEB_ORIGIN` to `.env.example` and Docker API environment configuration.
 
 ## Local Testing
 
@@ -168,6 +1289,15 @@ Current development URLs:
 - Arabic Kanban: `http://localhost:3000/ar/tasks/kanban`
 - Arabic leave requests: `http://localhost:3000/ar/leaves`
 - English leave requests: `http://localhost:3000/en/leaves`
+- Arabic email center: `http://localhost:3000/ar/email`
+- English email center: `http://localhost:3000/en/email`
+- Arabic platform dashboard: `http://localhost:3000/ar/platform`
+- Arabic platform companies: `http://localhost:3000/ar/platform/companies`
+- Arabic platform subscriptions: `http://localhost:3000/ar/platform/subscriptions`
+- Arabic platform plans: `http://localhost:3000/ar/platform/plans`
+- Arabic platform analytics: `http://localhost:3000/ar/platform/analytics`
+- Arabic platform settings: `http://localhost:3000/ar/platform/settings`
+- Arabic platform switch sessions: `http://localhost:3000/ar/platform/switch-sessions`
 - API docs: `http://localhost:4000/docs`
 - API base: `http://localhost:4000/api/v1`
 
@@ -186,14 +1316,39 @@ corepack pnpm lint
 corepack pnpm test:tenant-isolation
 corepack pnpm test:tasks-core
 corepack pnpm test:leave-requests-core
+corepack pnpm test:leave-enhancements
+corepack pnpm test:leave-balances
+corepack pnpm test:calendar
+corepack pnpm test:permissions
+corepack pnpm test:team-management
+corepack pnpm test:global-search
+corepack pnpm test:email-center
+corepack pnpm test:platform-company-management
+corepack pnpm test:platform-subscriptions
+corepack pnpm test:platform-company-switching
+corepack pnpm test:platform-analytics
+corepack pnpm test:platform-usage-snapshots
+corepack pnpm test:platform-security
+corepack pnpm test:platform-dashboard
 ```
 
 Additional local smoke checks completed:
 
 - Authenticated seed admin login against `http://localhost:4000/api/v1/auth/login`.
+- CORS preflight for `POST /api/v1/auth/login` returns matching `Access-Control-Allow-Origin` for:
+  - `http://localhost:3000`
+  - `http://127.0.0.1:3000`
+- Login POST from both local web origins returns HTTP `201 Created`.
 - Authenticated `GET /api/v1/tasks`, returning 3 seeded tenant tasks.
-- Authenticated `GET /api/v1/leave-types`, returning 4 seeded leave types.
-- Authenticated `GET /api/v1/leave-requests`, returning 1 seeded pending leave request.
+- Authenticated `GET /api/v1/leave-types`, returning 7 seeded leave types.
+- Authenticated `GET /api/v1/leave-requests`, returning seeded pending and approved leave requests.
+- Authenticated `GET /api/v1/leave-balances?year=2026`, returning 3 seeded balances.
+- Authenticated `GET /api/v1/leave-balances/me?year=2026` as the seeded employee, returning 3 seeded balances.
+- Authenticated `GET /api/v1/leave-settings`, returning `MANAGER_HR`.
+- Authenticated `GET /api/v1/leave-requests/calendar`, returning 1 approved seeded leave request for July 2026.
+- Authenticated `GET /api/v1/leave-requests/availability`, returning 1 employee on leave and 2 available employees for July 15, 2026.
+- Authenticated `GET /api/v1/calendar/team`, returning 1 approved seeded leave request for July 2026.
+- Authenticated `GET /api/v1/calendar/department/:id`, returning 1 approved seeded HR leave request for July 2026.
 - Web route checks returned HTTP 200:
   - `/ar/tasks/list`
   - `/ar/tasks/kanban`
@@ -201,10 +1356,18 @@ Additional local smoke checks completed:
   - `/en/tasks/kanban`
   - `/ar/leaves`
   - `/en/leaves`
+- Web platform route checks returned HTTP 200:
+  - `/ar/platform`
+  - `/ar/platform/companies`
+  - `/ar/platform/subscriptions`
+  - `/ar/platform/plans`
+  - `/ar/platform/analytics`
+  - `/ar/platform/settings`
+  - `/ar/platform/switch-sessions`
 
 ## Remaining Work
 
-The following modules should be implemented after Phase 2B approval:
+The following modules should be implemented after Phase 3 approval:
 
 - Task refinements:
   - richer multi-assignee editing
@@ -212,13 +1375,14 @@ The following modules should be implemented after Phase 2B approval:
   - reminder queue processors for due-soon and overdue notifications
   - uploaded binary file handling beyond attachment metadata
 - Leave request refinements:
-  - configurable workflow editor UI
-  - leave balance tracking
-  - calendar availability view
-- Email center backend implementation.
-- SMTP email worker and delivery status processing.
+  - richer workflow editor UI beyond the current Manager-only / Manager-HR selector
+  - leave accrual policy automation
+  - public holiday calendars
+- Email refinements:
+  - real binary file upload and attachment streaming through StorageProvider
+  - optional inbound mailbox ingestion if Inbox becomes a received-mail workflow
 - Real company switcher behavior for Super Admin users.
-- Real global search.
+- Super Admin SaaS portal for tenant management, usage metrics, platform settings, and company switching.
 
 ## Git Progress
 
@@ -233,3 +1397,19 @@ Recent completed commits:
 - `8db5bbc Add pre-Phase-2 architecture safeguards`
 - `f351a40 Implement Phase 2A task core`
 - `c811b71 Implement Phase 2B leave requests`
+- `Implement Phase 2B.1 leave enhancements`
+- `925603c Fix local login CORS origins`
+- `Align time-off enhancements with Phase 2B.1 scope`
+- `Implement Phase 2B.2 manager hierarchy and team management`
+- `Implement Phase 2C global search and productivity layer`
+- `Implement Phase 3 email center`
+- `Add Phase 4 super admin database schema`
+- `Implement Phase 4 super admin permissions`
+- `Implement Phase 4 platform backend skeleton`
+- `Implement Phase 4 company management APIs`
+- `Implement Phase 4 subscription management APIs`
+- `Implement Phase 4 company switching service`
+- `Implement Phase 4 platform analytics and usage metrics`
+- `Complete platform analytics snapshot pipeline and query optimization`
+- `Add platform endpoint authorization tests`
+- `Implement Phase 4 super admin web dashboard`

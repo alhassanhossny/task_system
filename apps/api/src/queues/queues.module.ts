@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { EmailQueue } from "./email.queue";
 import { NotificationQueue } from "./notification.queue";
+import { PlatformUsageSnapshotQueue } from "./platform-usage-snapshot.queue";
 import { QUEUE_NAMES } from "./queue.constants";
 import { SearchQueue } from "./search.queue";
 import { TaskReminderQueue } from "./task-reminder.queue";
@@ -32,9 +33,12 @@ import { TaskReminderQueue } from "./task-reminder.queue";
     }),
     BullModule.registerQueue({
       name: QUEUE_NAMES.taskReminder
+    }),
+    BullModule.registerQueue({
+      name: QUEUE_NAMES.platformUsageSnapshot
     })
   ],
-  providers: [EmailQueue, NotificationQueue, SearchQueue, TaskReminderQueue],
-  exports: [BullModule, EmailQueue, NotificationQueue, SearchQueue, TaskReminderQueue]
+  providers: [EmailQueue, NotificationQueue, SearchQueue, TaskReminderQueue, PlatformUsageSnapshotQueue],
+  exports: [BullModule, EmailQueue, NotificationQueue, SearchQueue, TaskReminderQueue, PlatformUsageSnapshotQueue]
 })
 export class QueuesModule {}

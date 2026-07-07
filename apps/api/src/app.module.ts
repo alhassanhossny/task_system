@@ -14,8 +14,10 @@ import { CompaniesModule } from "./companies/companies.module";
 import { DepartmentsModule } from "./departments/departments.module";
 import { DomainEventsModule } from "./domain-events/domain-events.module";
 import { EmailProvidersModule } from "./email-providers/email-providers.module";
+import { EmailsModule } from "./emails/emails.module";
 import { HealthModule } from "./health/health.module";
 import { LeaveRequestsModule } from "./leave-requests/leave-requests.module";
+import { PlatformModule } from "./modules/platform/platform.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { QueuesModule } from "./queues/queues.module";
@@ -23,6 +25,7 @@ import { RolesModule } from "./roles/roles.module";
 import { SearchModule } from "./search/search.module";
 import { SmtpSettingsModule } from "./smtp-settings/smtp-settings.module";
 import { TasksModule } from "./tasks/tasks.module";
+import { TeamModule } from "./team/team.module";
 import { UsersModule } from "./users/users.module";
 
 @Module({
@@ -44,9 +47,12 @@ import { UsersModule } from "./users/users.module";
     SmtpSettingsModule,
     QueuesModule,
     EmailProvidersModule,
+    EmailsModule,
     SearchModule,
     TasksModule,
-    LeaveRequestsModule
+    LeaveRequestsModule,
+    TeamModule,
+    PlatformModule
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

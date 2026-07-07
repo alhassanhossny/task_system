@@ -108,6 +108,21 @@ export class TaskEventsHandler implements OnModuleInit, OnModuleDestroy {
     }
 
     if (task) {
+      const [comments, attachments] = await Promise.all([
+        this.prisma.comment.findMany({
+          where: { companyId: event.companyId, entityType: EntityType.TASK, entityId: task.id, deletedAt: null },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+          select: { content: true }
+        }),
+        this.prisma.attachment.findMany({
+          where: { companyId: event.companyId, entityType: EntityType.TASK, entityId: task.id, deletedAt: null },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+          select: { fileName: true, mimeType: true, filePath: true }
+        })
+      ]);
+
       await this.searchIndexer.index({
         companyId: event.companyId,
         entityType: EntityType.TASK,
@@ -120,7 +135,9 @@ export class TaskEventsHandler implements OnModuleInit, OnModuleDestroy {
           task.department?.name,
           task.department?.code,
           ...task.assignees.map((assignee) => assignee.user.name),
-          ...task.assignees.map((assignee) => assignee.user.email)
+          ...task.assignees.map((assignee) => assignee.user.email),
+          ...comments.map((comment) => comment.content),
+          ...attachments.flatMap((attachment) => [attachment.fileName, attachment.mimeType, attachment.filePath])
         ]
           .filter(Boolean)
           .join("\n")

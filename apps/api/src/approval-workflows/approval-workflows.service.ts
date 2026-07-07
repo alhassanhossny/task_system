@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import { ApprovalActionStatus, EntityType, SystemRole } from "@prisma/client";
+import { ApprovalActionStatus, EntityType, LeaveApprovalMode, SystemRole } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
@@ -7,14 +7,10 @@ export class ApprovalWorkflowsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async ensureDefaultLeaveWorkflow(companyId: string) {
+    const setting = await this.ensureLeaveSetting(companyId);
     const existing = await this.prisma.approvalWorkflow.findFirst({
-      where: { companyId, entityType: EntityType.LEAVE_REQUEST, isActive: true, deletedAt: null },
-      include: { steps: { where: { deletedAt: null }, orderBy: { stepOrder: "asc" } } }
+      where: { companyId, entityType: EntityType.LEAVE_REQUEST, deletedAt: null }
     });
-
-    if (existing?.steps.length) {
-      return existing;
-    }
 
     const [managerRole, companyAdminRole] = await Promise.all([
       this.prisma.role.findUnique({
@@ -31,33 +27,32 @@ export class ApprovalWorkflowsService {
       throw new BadRequestException("Default leave approval roles are not configured for this tenant");
     }
 
-    const workflow = await this.prisma.approvalWorkflow.upsert({
-      where: {
-        id: existing?.id ?? "00000000-0000-4000-8000-000000000000"
-      },
-      update: {
-        isActive: true,
-        deletedAt: null
-      },
-      create: {
-        companyId,
-        entityType: EntityType.LEAVE_REQUEST,
-        name: "Default Leave Request Approval",
-        description: "Employee to manager to company admin approval path"
-      }
-    });
+    const workflow = existing
+      ? await this.prisma.approvalWorkflow.update({
+          where: { id: existing.id },
+          data: {
+            isActive: true,
+            deletedAt: null,
+            name: "Default Leave Request Approval",
+            description:
+              setting.approvalMode === LeaveApprovalMode.MANAGER_HR
+                ? "Employee to manager to HR approval path"
+                : "Employee to manager approval path"
+          }
+        })
+      : await this.prisma.approvalWorkflow.create({
+          data: {
+            companyId,
+            entityType: EntityType.LEAVE_REQUEST,
+            name: "Default Leave Request Approval",
+            description:
+              setting.approvalMode === LeaveApprovalMode.MANAGER_HR
+                ? "Employee to manager to HR approval path"
+                : "Employee to manager approval path"
+          }
+        });
 
-    await this.prisma.approvalStep.upsert({
-      where: { companyId_workflowId_stepOrder: { companyId, workflowId: workflow.id, stepOrder: 1 } },
-      update: { name: "Manager Approval", approverRoleId: managerRole.id, approverUserId: null, deletedAt: null },
-      create: { companyId, workflowId: workflow.id, stepOrder: 1, name: "Manager Approval", approverRoleId: managerRole.id }
-    });
-
-    await this.prisma.approvalStep.upsert({
-      where: { companyId_workflowId_stepOrder: { companyId, workflowId: workflow.id, stepOrder: 2 } },
-      update: { name: "Company Admin Approval", approverRoleId: companyAdminRole.id, approverUserId: null, deletedAt: null },
-      create: { companyId, workflowId: workflow.id, stepOrder: 2, name: "Company Admin Approval", approverRoleId: companyAdminRole.id }
-    });
+    await this.reconcileLeaveWorkflowSteps(companyId, workflow.id, setting.approvalMode, managerRole.id, companyAdminRole.id);
 
     return this.prisma.approvalWorkflow.findUniqueOrThrow({
       where: { id: workflow.id },
@@ -152,6 +147,13 @@ export class ApprovalWorkflowsService {
     return { action: updated, complete: true };
   }
 
+  async ensureCanActOnNext(companyId: string, entityType: EntityType, entityId: string, actorId: string) {
+    const action = await this.nextPendingAction(companyId, entityType, entityId);
+    await this.ensureCanAct(companyId, actorId, action.step);
+
+    return action;
+  }
+
   async nextApproverUserIds(companyId: string, entityType: EntityType, entityId: string) {
     const action = await this.nextPendingAction(companyId, entityType, entityId).catch(() => null);
 
@@ -173,6 +175,53 @@ export class ApprovalWorkflowsService {
     });
 
     return [...new Set(userRoles.map((userRole) => userRole.userId))];
+  }
+
+  async configureLeaveWorkflow(companyId: string, approvalMode: LeaveApprovalMode) {
+    const setting = await this.prisma.leaveSetting.upsert({
+      where: { companyId },
+      update: { approvalMode, deletedAt: null },
+      create: { companyId, approvalMode }
+    });
+    const workflow = await this.ensureDefaultLeaveWorkflow(companyId);
+
+    return { setting, workflow };
+  }
+
+  private ensureLeaveSetting(companyId: string) {
+    return this.prisma.leaveSetting.upsert({
+      where: { companyId },
+      update: { deletedAt: null },
+      create: { companyId, approvalMode: LeaveApprovalMode.MANAGER_HR }
+    });
+  }
+
+  private async reconcileLeaveWorkflowSteps(
+    companyId: string,
+    workflowId: string,
+    approvalMode: LeaveApprovalMode,
+    managerRoleId: string,
+    hrRoleId: string
+  ) {
+    await this.prisma.approvalStep.upsert({
+      where: { companyId_workflowId_stepOrder: { companyId, workflowId, stepOrder: 1 } },
+      update: { name: "Manager Approval", approverRoleId: managerRoleId, approverUserId: null, deletedAt: null },
+      create: { companyId, workflowId, stepOrder: 1, name: "Manager Approval", approverRoleId: managerRoleId }
+    });
+
+    if (approvalMode === LeaveApprovalMode.MANAGER_HR) {
+      await this.prisma.approvalStep.upsert({
+        where: { companyId_workflowId_stepOrder: { companyId, workflowId, stepOrder: 2 } },
+        update: { name: "HR Approval", approverRoleId: hrRoleId, approverUserId: null, deletedAt: null },
+        create: { companyId, workflowId, stepOrder: 2, name: "HR Approval", approverRoleId: hrRoleId }
+      });
+      return;
+    }
+
+    await this.prisma.approvalStep.updateMany({
+      where: { companyId, workflowId, stepOrder: { gt: 1 }, deletedAt: null },
+      data: { deletedAt: new Date() }
+    });
   }
 
   private async nextPendingAction(companyId: string, entityType: EntityType, entityId: string) {

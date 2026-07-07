@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { LeaveStatus } from "@prisma/client";
+import { LeaveRequestType, LeaveStatus } from "@prisma/client";
 import { IsDateString, IsEnum, IsOptional, IsString, IsUUID } from "class-validator";
 
 export class LeaveQueryDto {
@@ -7,6 +7,11 @@ export class LeaveQueryDto {
   @IsOptional()
   @IsEnum(LeaveStatus)
   status?: LeaveStatus;
+
+  @ApiPropertyOptional({ enum: LeaveRequestType })
+  @IsOptional()
+  @IsEnum(LeaveRequestType)
+  requestType?: LeaveRequestType;
 
   @ApiPropertyOptional({ format: "uuid" })
   @IsOptional()
@@ -17,6 +22,11 @@ export class LeaveQueryDto {
   @IsOptional()
   @IsUUID()
   leaveTypeId?: string;
+
+  @ApiPropertyOptional({ format: "uuid" })
+  @IsOptional()
+  @IsUUID()
+  departmentId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

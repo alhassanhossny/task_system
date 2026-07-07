@@ -1,4 +1,18 @@
-import { PrismaClient, CompanyPlan, CompanyStatus, EntityType, LeaveStatus, Locale, SystemRole, TaskPriority, TaskStatus, UserStatus } from "@prisma/client";
+import {
+  PrismaClient,
+  CompanyPlan,
+  CompanyStatus,
+  EntityType,
+  LeaveApprovalMode,
+  LeaveDurationType,
+  LeaveRequestType,
+  LeaveStatus,
+  Locale,
+  SystemRole,
+  TaskPriority,
+  TaskStatus,
+  UserStatus
+} from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -16,10 +30,22 @@ const ids = {
 };
 
 const permissionSeeds = [
+  ["read", "platform", "Read platform administration data"],
+  ["manage", "platform", "Manage platform administration"],
   ["read", "companies", "Read companies"],
   ["write", "companies", "Create and update companies"],
+  ["create", "companies", "Create tenant companies"],
+  ["update", "companies", "Update tenant companies"],
+  ["suspend", "companies", "Suspend tenant companies"],
+  ["read", "subscriptions", "Read company subscriptions"],
+  ["manage", "subscriptions", "Manage company subscriptions"],
+  ["read", "platform_settings", "Read platform settings"],
+  ["update", "platform_settings", "Update platform settings"],
+  ["read", "analytics", "Read platform analytics"],
+  ["execute", "tenant_switch", "Switch into tenant context"],
   ["read", "users", "Read users"],
   ["write", "users", "Create and update users"],
+  ["view_team", "users", "View direct reports"],
   ["read", "roles", "Read roles"],
   ["write", "roles", "Create and update roles"],
   ["read", "departments", "Read departments"],
@@ -35,6 +61,8 @@ const permissionSeeds = [
   ["read", "smtp_settings", "Read SMTP settings"],
   ["write", "smtp_settings", "Create and update SMTP settings"],
   ["read", "search", "Use global search"],
+  ["read", "saved_filters", "Read saved filters"],
+  ["write", "saved_filters", "Create and update saved filters"],
   ["read", "approval_workflows", "Read approval workflows"],
   ["write", "approval_workflows", "Create and update approval workflows"],
   ["read", "tags", "Read tags"],
@@ -49,16 +77,31 @@ const permissionSeeds = [
   ["comment", "tasks", "Comment on tasks"],
   ["attach", "tasks", "Attach files to tasks"],
   ["complete", "tasks", "Complete tasks"],
+  ["view_team", "tasks", "View direct-report tasks"],
+  ["assign_team", "tasks", "Assign tasks to direct reports"],
   ["read", "leave_requests", "Read leave requests"],
   ["submit", "leave_requests", "Submit leave requests"],
   ["update", "leave_requests", "Update leave requests"],
   ["cancel", "leave_requests", "Cancel leave requests"],
   ["approve", "leave_requests", "Approve leave requests"],
   ["reject", "leave_requests", "Reject leave requests"],
+  ["view_team", "leave_requests", "View direct-report leave requests"],
+  ["approve_team", "leave_requests", "Approve direct-report leave requests"],
+  ["reject_team", "leave_requests", "Reject direct-report leave requests"],
+  ["view_team", "calendar", "View direct-report availability calendar"],
   ["read", "leave_types", "Read leave types"],
   ["write", "leave_types", "Create and update leave types"],
+  ["read", "leave_balances", "Read leave balances"],
+  ["write", "leave_balances", "Create and update leave balances"],
+  ["read", "leave_settings", "Read leave settings"],
+  ["write", "leave_settings", "Create and update leave settings"],
   ["read", "emails", "Read emails"],
+  ["create", "emails", "Create email drafts"],
+  ["update", "emails", "Update email drafts"],
+  ["delete", "emails", "Delete emails"],
   ["send", "emails", "Send emails"],
+  ["read", "email_templates", "Read email templates"],
+  ["write", "email_templates", "Create and update email templates"],
   ["manage", "email_templates", "Manage email templates"]
 ] as const;
 
@@ -70,11 +113,91 @@ const tenantRoleSeeds = [
 
 const permissionKey = (action: string, subject: string) => `${subject}:${action}`;
 
+const tenantAdminPermissions = [
+  "companies:read",
+  "companies:write",
+  "users:read",
+  "users:write",
+  "users:view_team",
+  "roles:read",
+  "roles:write",
+  "departments:read",
+  "departments:write",
+  "audit_logs:read",
+  "activities:read",
+  "attachments:read",
+  "attachments:write",
+  "comments:read",
+  "comments:write",
+  "notifications:read",
+  "notifications:write",
+  "smtp_settings:read",
+  "smtp_settings:write",
+  "search:read",
+  "saved_filters:read",
+  "saved_filters:write",
+  "approval_workflows:read",
+  "approval_workflows:write",
+  "tags:read",
+  "tags:write",
+  "user_preferences:read",
+  "user_preferences:write",
+  "tasks:read",
+  "tasks:create",
+  "tasks:update",
+  "tasks:delete",
+  "tasks:assign",
+  "tasks:comment",
+  "tasks:attach",
+  "tasks:complete",
+  "tasks:view_team",
+  "tasks:assign_team",
+  "leave_requests:read",
+  "leave_requests:submit",
+  "leave_requests:update",
+  "leave_requests:cancel",
+  "leave_requests:approve",
+  "leave_requests:reject",
+  "leave_requests:view_team",
+  "leave_requests:approve_team",
+  "leave_requests:reject_team",
+  "calendar:view_team",
+  "leave_types:read",
+  "leave_types:write",
+  "leave_balances:read",
+  "leave_balances:write",
+  "leave_settings:read",
+  "leave_settings:write",
+  "emails:read",
+  "emails:create",
+  "emails:update",
+  "emails:delete",
+  "emails:send",
+  "email_templates:read",
+  "email_templates:write",
+  "email_templates:manage"
+] as const;
+
+const superAdminOnlyPermissions = new Set([
+  "platform:read",
+  "platform:manage",
+  "companies:create",
+  "companies:update",
+  "companies:suspend",
+  "subscriptions:read",
+  "subscriptions:manage",
+  "platform_settings:read",
+  "platform_settings:update",
+  "analytics:read",
+  "tenant_switch:execute"
+]);
+
 const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
   [SystemRole.SUPER_ADMIN]: ["*"],
-  [SystemRole.COMPANY_ADMIN]: ["*"],
+  [SystemRole.COMPANY_ADMIN]: tenantAdminPermissions,
   [SystemRole.MANAGER]: [
     "users:read",
+    "users:view_team",
     "departments:read",
     "activities:read",
     "attachments:read",
@@ -84,6 +207,8 @@ const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
     "notifications:read",
     "notifications:write",
     "search:read",
+    "saved_filters:read",
+    "saved_filters:write",
     "approval_workflows:read",
     "tags:read",
     "tags:write",
@@ -97,13 +222,25 @@ const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
     "tasks:comment",
     "tasks:attach",
     "tasks:complete",
+    "tasks:view_team",
+    "tasks:assign_team",
     "leave_requests:read",
-    "leave_requests:approve",
-    "leave_requests:reject",
+    "leave_requests:view_team",
+    "leave_requests:approve_team",
+    "leave_requests:reject_team",
+    "calendar:view_team",
     "leave_types:read",
     "leave_types:write",
+    "leave_balances:read",
+    "leave_balances:write",
+    "leave_settings:read",
     "emails:read",
-    "emails:send"
+    "emails:create",
+    "emails:update",
+    "emails:delete",
+    "emails:send",
+    "email_templates:read",
+    "email_templates:write"
   ],
   [SystemRole.EMPLOYEE]: [
     "users:read",
@@ -116,6 +253,8 @@ const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
     "notifications:read",
     "notifications:write",
     "search:read",
+    "saved_filters:read",
+    "saved_filters:write",
     "tags:read",
     "user_preferences:read",
     "user_preferences:write",
@@ -130,8 +269,13 @@ const rolePermissionMatrix: Record<SystemRole, readonly string[]> = {
     "leave_requests:update",
     "leave_requests:cancel",
     "leave_types:read",
+    "leave_balances:read",
+    "leave_settings:read",
     "emails:read",
-    "emails:send"
+    "emails:create",
+    "emails:update",
+    "emails:send",
+    "email_templates:read"
   ]
 };
 
@@ -177,6 +321,9 @@ async function seedRoles(companyId: string, includeSuperAdmin: boolean) {
 async function linkRolePermissions(companyId: string) {
   const roles = await prisma.role.findMany({ where: { companyId } });
   const permissions = await prisma.permission.findMany({ where: { companyId } });
+  const superAdminOnlyPermissionIds = permissions
+    .filter((permission) => superAdminOnlyPermissions.has(permissionKey(permission.action, permission.subject)))
+    .map((permission) => permission.id);
 
   for (const role of roles) {
     const allowedKeys = new Set(rolePermissionMatrix[role.systemName]);
@@ -191,8 +338,20 @@ async function linkRolePermissions(companyId: string) {
             permissionId: permission.id
           }
         },
-        update: {},
+        update: { deletedAt: null },
         create: { companyId, roleId: role.id, permissionId: permission.id }
+      });
+    }
+
+    if (role.systemName !== SystemRole.SUPER_ADMIN && superAdminOnlyPermissionIds.length) {
+      await prisma.rolePermission.updateMany({
+        where: {
+          companyId,
+          roleId: role.id,
+          permissionId: { in: superAdminOnlyPermissionIds },
+          deletedAt: null
+        },
+        data: { deletedAt: new Date() }
       });
     }
   }
@@ -298,7 +457,7 @@ async function seedTask(input: {
     },
     update: {
       title: `${task.taskNumber} ${task.title}`,
-      content: [task.taskNumber, task.title, task.description].filter(Boolean).join("\n"),
+      content: await taskSearchContent(input.companyId, task.id),
       deletedAt: null
     },
     create: {
@@ -306,11 +465,33 @@ async function seedTask(input: {
       entityType: EntityType.TASK,
       entityId: task.id,
       title: `${task.taskNumber} ${task.title}`,
-      content: [task.taskNumber, task.title, task.description].filter(Boolean).join("\n")
+      content: await taskSearchContent(input.companyId, task.id)
     }
   });
 
   return task;
+}
+
+async function taskSearchContent(companyId: string, taskId: string) {
+  const task = await prisma.task.findFirstOrThrow({
+    where: { companyId, id: taskId },
+    include: {
+      department: { select: { name: true, code: true } },
+      assignees: { where: { deletedAt: null }, include: { user: { select: { name: true, email: true } } } }
+    }
+  });
+
+  return [
+    task.taskNumber,
+    task.title,
+    task.description,
+    task.department?.name,
+    task.department?.code,
+    ...task.assignees.map((assignee) => assignee.user.name),
+    ...task.assignees.map((assignee) => assignee.user.email)
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 async function seedLeaveType(companyId: string, input: { name: string; code: string; description?: string; isPaid?: boolean; annualAllowanceDays?: number }) {
@@ -336,6 +517,11 @@ async function seedLeaveType(companyId: string, input: { name: string; code: str
 }
 
 async function seedDefaultLeaveWorkflow(companyId: string) {
+  const setting = await prisma.leaveSetting.upsert({
+    where: { companyId },
+    update: { approvalMode: LeaveApprovalMode.MANAGER_HR, deletedAt: null },
+    create: { companyId, approvalMode: LeaveApprovalMode.MANAGER_HR }
+  });
   const [managerRole, companyAdminRole] = await Promise.all([
     prisma.role.findUniqueOrThrow({ where: { companyId_systemName: { companyId, systemName: SystemRole.MANAGER } } }),
     prisma.role.findUniqueOrThrow({ where: { companyId_systemName: { companyId, systemName: SystemRole.COMPANY_ADMIN } } })
@@ -346,14 +532,17 @@ async function seedDefaultLeaveWorkflow(companyId: string) {
   const workflow = existing
     ? await prisma.approvalWorkflow.update({
         where: { id: existing.id },
-        data: { name: "Default Leave Request Approval", isActive: true }
-      })
+      data: { name: "Default Leave Request Approval", isActive: true }
+    })
     : await prisma.approvalWorkflow.create({
         data: {
           companyId,
           entityType: EntityType.LEAVE_REQUEST,
           name: "Default Leave Request Approval",
-          description: "Employee to manager to company admin approval path"
+          description:
+            setting.approvalMode === LeaveApprovalMode.MANAGER_HR
+              ? "Employee to manager to HR approval path"
+              : "Employee to manager approval path"
         }
       });
 
@@ -364,11 +553,211 @@ async function seedDefaultLeaveWorkflow(companyId: string) {
   });
   await prisma.approvalStep.upsert({
     where: { companyId_workflowId_stepOrder: { companyId, workflowId: workflow.id, stepOrder: 2 } },
-    update: { name: "Company Admin Approval", approverRoleId: companyAdminRole.id, approverUserId: null, deletedAt: null },
-    create: { companyId, workflowId: workflow.id, stepOrder: 2, name: "Company Admin Approval", approverRoleId: companyAdminRole.id }
+    update: { name: "HR Approval", approverRoleId: companyAdminRole.id, approverUserId: null, deletedAt: null },
+    create: { companyId, workflowId: workflow.id, stepOrder: 2, name: "HR Approval", approverRoleId: companyAdminRole.id }
   });
 
   return workflow;
+}
+
+async function seedLeaveBalance(input: {
+  companyId: string;
+  employeeId: string;
+  leaveTypeId: string;
+  year: number;
+  allocatedDays: number;
+  usedDays: number;
+}) {
+  await prisma.leaveBalance.upsert({
+    where: {
+      companyId_employeeId_leaveTypeId_year: {
+        companyId: input.companyId,
+        employeeId: input.employeeId,
+        leaveTypeId: input.leaveTypeId,
+        year: input.year
+      }
+    },
+    update: {
+      allocatedDays: input.allocatedDays,
+      usedDays: input.usedDays,
+      remainingDays: input.allocatedDays - input.usedDays,
+      deletedAt: null
+    },
+    create: {
+      companyId: input.companyId,
+      employeeId: input.employeeId,
+      leaveTypeId: input.leaveTypeId,
+      year: input.year,
+      allocatedDays: input.allocatedDays,
+      usedDays: input.usedDays,
+      remainingDays: input.allocatedDays - input.usedDays
+    }
+  });
+}
+
+async function seedUserSearchIndexes(companyId: string) {
+  const users = await prisma.user.findMany({
+    where: { companyId, deletedAt: null },
+    include: {
+      department: { select: { name: true, code: true } },
+      manager: { select: { name: true, email: true } }
+    }
+  });
+
+  for (const user of users) {
+    await prisma.searchIndex.upsert({
+      where: { companyId_entityType_entityId: { companyId, entityType: EntityType.USER, entityId: user.id } },
+      update: {
+        title: user.name,
+        content: [user.name, user.email, user.jobTitle, user.department?.name, user.department?.code, user.manager?.name, user.manager?.email]
+          .filter(Boolean)
+          .join("\n"),
+        deletedAt: null
+      },
+      create: {
+        companyId,
+        entityType: EntityType.USER,
+        entityId: user.id,
+        title: user.name,
+        content: [user.name, user.email, user.jobTitle, user.department?.name, user.department?.code, user.manager?.name, user.manager?.email]
+          .filter(Boolean)
+          .join("\n")
+      }
+    });
+  }
+}
+
+async function seedDepartmentSearchIndexes(companyId: string) {
+  const departments = await prisma.department.findMany({
+    where: { companyId, deletedAt: null },
+    include: {
+      manager: { select: { name: true, email: true } }
+    }
+  });
+
+  for (const department of departments) {
+    await prisma.searchIndex.upsert({
+      where: { companyId_entityType_entityId: { companyId, entityType: EntityType.DEPARTMENT, entityId: department.id } },
+      update: {
+        title: department.name,
+        content: [department.name, department.code, department.description, department.manager?.name, department.manager?.email].filter(Boolean).join("\n"),
+        deletedAt: null
+      },
+      create: {
+        companyId,
+        entityType: EntityType.DEPARTMENT,
+        entityId: department.id,
+        title: department.name,
+        content: [department.name, department.code, department.description, department.manager?.name, department.manager?.email].filter(Boolean).join("\n")
+      }
+    });
+  }
+}
+
+async function seedLeaveSearchIndexes(companyId: string) {
+  const leaves = await prisma.leaveRequest.findMany({
+    where: { companyId, deletedAt: null },
+    include: {
+      employee: { select: { name: true, email: true, manager: { select: { name: true, email: true } } } },
+      department: { select: { name: true, code: true } },
+      leaveTypeRef: { select: { code: true } }
+    }
+  });
+
+  for (const leave of leaves) {
+    await prisma.searchIndex.upsert({
+      where: { companyId_entityType_entityId: { companyId, entityType: EntityType.LEAVE_REQUEST, entityId: leave.id } },
+      update: {
+        title: `${leave.requestNumber ?? ""} ${leave.employee.name} ${leave.leaveType}`.trim(),
+        content: [
+          leave.requestNumber,
+          leave.employee.name,
+          leave.employee.email,
+          leave.employee.manager?.name,
+          leave.employee.manager?.email,
+          leave.leaveType,
+          leave.leaveTypeRef?.code,
+          leave.department?.name,
+          leave.department?.code,
+          leave.status,
+          leave.reason
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        deletedAt: null
+      },
+      create: {
+        companyId,
+        entityType: EntityType.LEAVE_REQUEST,
+        entityId: leave.id,
+        title: `${leave.requestNumber ?? ""} ${leave.employee.name} ${leave.leaveType}`.trim(),
+        content: [
+          leave.requestNumber,
+          leave.employee.name,
+          leave.employee.email,
+          leave.employee.manager?.name,
+          leave.employee.manager?.email,
+          leave.leaveType,
+          leave.leaveTypeRef?.code,
+          leave.department?.name,
+          leave.department?.code,
+          leave.status,
+          leave.reason
+        ]
+          .filter(Boolean)
+          .join("\n")
+      }
+    });
+  }
+}
+
+const emailTemplateSeeds = [
+  {
+    name: "Welcome User",
+    subject: "Welcome to {{company_name}}",
+    body: "Hello {{employee_name}},\n\nWelcome to {{company_name}}. Your account is ready."
+  },
+  {
+    name: "Task Assigned",
+    subject: "Task assigned: {{task_number}}",
+    body: "Hello {{employee_name}},\n\nYou have been assigned task {{task_number}}."
+  },
+  {
+    name: "Leave Approved",
+    subject: "Leave approved: {{leave_type}}",
+    body: "Hello {{employee_name}},\n\nYour {{leave_type}} request has been approved."
+  },
+  {
+    name: "Leave Rejected",
+    subject: "Leave request update: {{leave_type}}",
+    body: "Hello {{employee_name}},\n\nYour {{leave_type}} request was rejected."
+  },
+  {
+    name: "Password Reset",
+    subject: "Password reset request",
+    body: "Hello {{employee_name}},\n\nUse the secure password reset link from {{company_name}} to continue."
+  }
+] as const;
+
+async function seedEmailTemplates(companyId: string) {
+  for (const template of emailTemplateSeeds) {
+    await prisma.emailTemplate.upsert({
+      where: { companyId_name: { companyId, name: template.name } },
+      update: {
+        subject: template.subject,
+        body: template.body,
+        isSystem: true,
+        deletedAt: null
+      },
+      create: {
+        companyId,
+        name: template.name,
+        subject: template.subject,
+        body: template.body,
+        isSystem: true
+      }
+    });
+  }
 }
 
 async function main() {
@@ -423,7 +812,7 @@ async function main() {
 
   await prisma.user.upsert({
     where: { companyId_email: { companyId: ids.advancedTech, email: "admin@company.com" } },
-    update: { name: "أحمد محمد العلي", passwordHash, status: UserStatus.ACTIVE },
+    update: { name: "أحمد محمد العلي", passwordHash, status: UserStatus.ACTIVE, managerId: null },
     create: {
       id: ids.companyAdmin,
       companyId: ids.advancedTech,
@@ -438,10 +827,11 @@ async function main() {
 
   await prisma.user.upsert({
     where: { companyId_email: { companyId: ids.advancedTech, email: "sara@company.com" } },
-    update: { name: "سارة خالد الفارسي", passwordHash, status: UserStatus.ACTIVE },
+    update: { name: "سارة خالد الفارسي", passwordHash, status: UserStatus.ACTIVE, managerId: ids.companyAdmin },
     create: {
       id: ids.manager,
       companyId: ids.advancedTech,
+      managerId: ids.companyAdmin,
       email: "sara@company.com",
       passwordHash,
       name: "سارة خالد الفارسي",
@@ -453,10 +843,11 @@ async function main() {
 
   await prisma.user.upsert({
     where: { companyId_email: { companyId: ids.advancedTech, email: "mohammed@company.com" } },
-    update: { name: "محمد عبدالله الحربي", passwordHash, status: UserStatus.ACTIVE },
+    update: { name: "محمد عبدالله الحربي", passwordHash, status: UserStatus.ACTIVE, managerId: ids.manager },
     create: {
       id: ids.employee,
       companyId: ids.advancedTech,
+      managerId: ids.manager,
       email: "mohammed@company.com",
       passwordHash,
       name: "محمد عبدالله الحربي",
@@ -501,6 +892,7 @@ async function main() {
 
   for (const companyId of [ids.platformCompany, ids.advancedTech, ids.leadingGroup]) {
     await linkRolePermissions(companyId);
+    await seedEmailTemplates(companyId);
   }
 
   await seedTask({
@@ -556,13 +948,13 @@ async function main() {
     description: "رصيد الإجازات السنوية المدفوعة",
     annualAllowanceDays: 21
   });
-  await seedLeaveType(ids.advancedTech, {
+  const sickLeave = await seedLeaveType(ids.advancedTech, {
     name: "إجازة مرضية",
     code: "SICK",
     description: "الإجازات المرضية المدعومة بتقرير طبي",
     annualAllowanceDays: 14
   });
-  await seedLeaveType(ids.advancedTech, {
+  const emergencyLeave = await seedLeaveType(ids.advancedTech, {
     name: "إجازة طارئة",
     code: "EMERGENCY",
     description: "إجازات الظروف الطارئة",
@@ -574,15 +966,65 @@ async function main() {
     description: "إجازة غير مدفوعة",
     isPaid: false
   });
+  await seedLeaveType(ids.advancedTech, {
+    name: "نصف يوم",
+    code: "HALF_DAY",
+    description: "طلب إجازة لنصف يوم عمل",
+    annualAllowanceDays: 6
+  });
+  await seedLeaveType(ids.advancedTech, {
+    name: "استئذان ساعات",
+    code: "PERMISSION",
+    description: "استئذان لمدة ساعتين إلى أربع ساعات",
+    annualAllowanceDays: 3
+  });
+  await seedLeaveType(ids.advancedTech, {
+    name: "عمل من المنزل",
+    code: "WFH",
+    description: "طلب عمل من المنزل حسب سياسة الشركة",
+    isPaid: true
+  });
+
+  await seedLeaveBalance({
+    companyId: ids.advancedTech,
+    employeeId: ids.employee,
+    leaveTypeId: annualLeave.id,
+    year: 2026,
+    allocatedDays: 21,
+    usedDays: 5
+  });
+  await seedLeaveBalance({
+    companyId: ids.advancedTech,
+    employeeId: ids.employee,
+    leaveTypeId: sickLeave.id,
+    year: 2026,
+    allocatedDays: 14,
+    usedDays: 2
+  });
+  await seedLeaveBalance({
+    companyId: ids.advancedTech,
+    employeeId: ids.employee,
+    leaveTypeId: emergencyLeave.id,
+    year: 2026,
+    allocatedDays: 5,
+    usedDays: 0
+  });
+
   const leaveWorkflow = await seedDefaultLeaveWorkflow(ids.advancedTech);
   const seededLeave = await prisma.leaveRequest.upsert({
     where: { id: "00000000-0000-4000-8000-000000004101" },
     update: {
       leaveTypeId: annualLeave.id,
+      requestNumber: "LR-00001",
+      requestType: LeaveRequestType.LEAVE,
       leaveType: annualLeave.name,
       status: LeaveStatus.PENDING,
       startsAt: new Date("2026-07-14T00:00:00.000Z"),
       endsAt: new Date("2026-07-16T23:59:59.000Z"),
+      durationType: LeaveDurationType.FULL_DAY,
+      durationDays: 3,
+      durationHours: null,
+      halfDayPeriod: null,
       reason: "طلب إجازة سنوية مجدولة",
       deletedAt: null
     },
@@ -592,11 +1034,53 @@ async function main() {
       employeeId: ids.employee,
       departmentId: ids.hrDept,
       leaveTypeId: annualLeave.id,
+      requestNumber: "LR-00001",
+      requestType: LeaveRequestType.LEAVE,
       leaveType: annualLeave.name,
       startsAt: new Date("2026-07-14T00:00:00.000Z"),
       endsAt: new Date("2026-07-16T23:59:59.000Z"),
+      durationType: LeaveDurationType.FULL_DAY,
+      durationDays: 3,
       reason: "طلب إجازة سنوية مجدولة",
       status: LeaveStatus.PENDING
+    }
+  });
+  await prisma.leaveRequest.upsert({
+    where: { id: "00000000-0000-4000-8000-000000004102" },
+    update: {
+      leaveTypeId: sickLeave.id,
+      requestNumber: "LR-00002",
+      requestType: LeaveRequestType.LEAVE,
+      leaveType: sickLeave.name,
+      status: LeaveStatus.APPROVED,
+      startsAt: new Date("2026-07-15T00:00:00.000Z"),
+      endsAt: new Date("2026-07-15T23:59:59.000Z"),
+      durationType: LeaveDurationType.FULL_DAY,
+      durationDays: 1,
+      durationHours: null,
+      halfDayPeriod: null,
+      reason: "إجازة مرضية معتمدة",
+      approvedAt: new Date("2026-07-01T09:00:00.000Z"),
+      rejectedAt: null,
+      cancelledAt: null,
+      deletedAt: null
+    },
+    create: {
+      id: "00000000-0000-4000-8000-000000004102",
+      companyId: ids.advancedTech,
+      employeeId: ids.employee,
+      departmentId: ids.hrDept,
+      leaveTypeId: sickLeave.id,
+      requestNumber: "LR-00002",
+      requestType: LeaveRequestType.LEAVE,
+      leaveType: sickLeave.name,
+      startsAt: new Date("2026-07-15T00:00:00.000Z"),
+      endsAt: new Date("2026-07-15T23:59:59.000Z"),
+      durationType: LeaveDurationType.FULL_DAY,
+      durationDays: 1,
+      reason: "إجازة مرضية معتمدة",
+      status: LeaveStatus.APPROVED,
+      approvedAt: new Date("2026-07-01T09:00:00.000Z")
     }
   });
   const leaveSteps = await prisma.approvalStep.findMany({
@@ -627,6 +1111,10 @@ async function main() {
       });
     }
   }
+
+  await seedUserSearchIndexes(ids.advancedTech);
+  await seedDepartmentSearchIndexes(ids.advancedTech);
+  await seedLeaveSearchIndexes(ids.advancedTech);
 
   await prisma.auditLog.create({
     data: {

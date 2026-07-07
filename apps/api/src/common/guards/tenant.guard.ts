@@ -2,14 +2,18 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from "@
 import { Reflector } from "@nestjs/core";
 import { SystemRole } from "@prisma/client";
 import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
-import { TENANT_HEADER } from "../constants";
+import { PLATFORM_PERMISSIONS_KEY, TENANT_HEADER } from "../constants";
 import { TenantRequest } from "../types/request-user";
+import { PrismaService } from "../../prisma/prisma.service";
 
 @Injectable()
 export class TenantGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly prisma: PrismaService
+  ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass()
@@ -30,11 +34,39 @@ export class TenantGuard implements CanActivate {
     const requestedCompanyId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
     const isSuperAdmin = user.roles.includes(SystemRole.SUPER_ADMIN);
 
-    if (requestedCompanyId && requestedCompanyId !== user.companyId && !isSuperAdmin) {
+    if (user.actingCompanyId && requestedCompanyId && requestedCompanyId !== user.actingCompanyId) {
+      throw new ForbiddenException("Cannot override an active company switch session");
+    }
+
+    if (!user.actingCompanyId && requestedCompanyId && requestedCompanyId !== user.companyId && !isSuperAdmin) {
       throw new ForbiddenException("Cannot access another company tenant");
     }
 
-    request.companyId = requestedCompanyId && isSuperAdmin ? requestedCompanyId : user.companyId;
+    const effectiveCompanyId = user.actingCompanyId ?? (requestedCompanyId && isSuperAdmin ? requestedCompanyId : user.companyId);
+    request.companyId = effectiveCompanyId;
+
+    const platformPermissions = this.reflector.getAllAndOverride<string[]>(PLATFORM_PERMISSIONS_KEY, [
+      context.getHandler(),
+      context.getClass()
+    ]);
+
+    if (platformPermissions?.length) {
+      return true;
+    }
+
+    const company = await this.prisma.company.findFirst({
+      where: { id: effectiveCompanyId, deletedAt: null },
+      select: { suspendedAt: true }
+    });
+
+    if (!company) {
+      throw new ForbiddenException("Company tenant is not available");
+    }
+
+    if (company.suspendedAt) {
+      throw new ForbiddenException("Company tenant is suspended");
+    }
+
     return true;
   }
 }

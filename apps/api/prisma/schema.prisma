@@ -30,6 +30,52 @@ enum CompanyStatus {
   @@map("company_status")
 }
 
+enum SubscriptionStatus {
+  TRIALING  @map("trialing")
+  ACTIVE    @map("active")
+  PAST_DUE  @map("past_due")
+  CANCELLED @map("cancelled")
+  EXPIRED   @map("expired")
+
+  @@map("subscription_status")
+}
+
+enum BillingInterval {
+  MONTHLY @map("monthly")
+  YEARLY  @map("yearly")
+
+  @@map("billing_interval")
+}
+
+enum SubscriptionInvoiceStatus {
+  DRAFT         @map("draft")
+  OPEN          @map("open")
+  PAID          @map("paid")
+  VOID          @map("void")
+  UNCOLLECTIBLE @map("uncollectible")
+
+  @@map("subscription_invoice_status")
+}
+
+enum CompanySwitchStatus {
+  ACTIVE  @map("active")
+  ENDED   @map("ended")
+  REVOKED @map("revoked")
+  EXPIRED @map("expired")
+
+  @@map("company_switch_status")
+}
+
+enum PlatformSettingValueType {
+  STRING  @map("string")
+  NUMBER  @map("number")
+  BOOLEAN @map("boolean")
+  JSON    @map("json")
+  SECRET  @map("secret")
+
+  @@map("platform_setting_value_type")
+}
+
 enum UserStatus {
   ACTIVE    @map("active")
   INACTIVE  @map("inactive")
@@ -69,12 +115,44 @@ enum TaskPriority {
 }
 
 enum LeaveStatus {
-  PENDING   @map("pending")
-  APPROVED  @map("approved")
-  REJECTED  @map("rejected")
-  CANCELLED @map("cancelled")
+  PENDING        @map("pending")
+  INFO_REQUESTED @map("info_requested")
+  APPROVED       @map("approved")
+  REJECTED       @map("rejected")
+  CANCELLED      @map("cancelled")
 
   @@map("leave_status")
+}
+
+enum LeaveDurationType {
+  FULL_DAY    @map("full_day")
+  HALF_DAY    @map("half_day")
+  HALF_DAY_AM @map("half_day_am")
+  HALF_DAY_PM @map("half_day_pm")
+  HOURS       @map("hours")
+
+  @@map("leave_duration_type")
+}
+
+enum LeaveRequestType {
+  LEAVE      @map("leave")
+  PERMISSION @map("permission")
+
+  @@map("leave_request_type")
+}
+
+enum LeaveHalfDayPeriod {
+  MORNING   @map("morning")
+  AFTERNOON @map("afternoon")
+
+  @@map("leave_half_day_period")
+}
+
+enum LeaveApprovalMode {
+  MANAGER_ONLY @map("manager_only")
+  MANAGER_HR   @map("manager_hr")
+
+  @@map("leave_approval_mode")
 }
 
 enum EmailDirection {
@@ -82,6 +160,33 @@ enum EmailDirection {
   OUTBOUND @map("outbound")
 
   @@map("email_direction")
+}
+
+enum EmailStatus {
+  DRAFT     @map("draft")
+  QUEUED    @map("queued")
+  SENDING   @map("sending")
+  SENT      @map("sent")
+  FAILED    @map("failed")
+  CANCELLED @map("cancelled")
+
+  @@map("email_status")
+}
+
+enum EmailRecipientKind {
+  TO  @map("to")
+  CC  @map("cc")
+  BCC @map("bcc")
+
+  @@map("email_recipient_kind")
+}
+
+enum EmailRecipientType {
+  EMPLOYEE @map("employee")
+  CLIENT   @map("client")
+  EXTERNAL @map("external")
+
+  @@map("email_recipient_type")
 }
 
 enum EntityType {
@@ -103,10 +208,13 @@ enum NotificationType {
   TASK_DUE_SOON
   TASK_OVERDUE
   LEAVE_SUBMITTED
+  LEAVE_INFO_REQUESTED
   LEAVE_APPROVED
   LEAVE_REJECTED
   LEAVE_CANCELLED
+  EMAIL_QUEUED
   EMAIL_SENT
+  EMAIL_FAILED
   SYSTEM
 
   @@map("notification_type")
@@ -144,6 +252,12 @@ model Company {
   plan          CompanyPlan   @default(STARTER)
   status        CompanyStatus @default(TRIAL)
   defaultLocale Locale        @default(AR) @map("default_locale")
+  primaryDomain String?       @unique @map("primary_domain")
+  billingEmail  String?       @map("billing_email")
+  supportEmail  String?       @map("support_email")
+  timezone      String        @default("UTC")
+  trialEndsAt   DateTime?     @map("trial_ends_at") @db.Timestamptz(6)
+  suspendedAt   DateTime?     @map("suspended_at") @db.Timestamptz(6)
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt     DateTime?     @map("deleted_at") @db.Timestamptz(6)
@@ -162,11 +276,19 @@ model Company {
   taskWatchers    TaskWatcher[]
   leaveTypes      LeaveType[]
   leaveRequests   LeaveRequest[]
+  leaveBalances   LeaveBalance[]
+  leaveSetting    LeaveSetting?
+  emails          Email[]
+  emailRecipients EmailRecipient[]
+  emailTemplates  EmailTemplate[]
+  emailAttachments EmailAttachment[]
   emailMessages   EmailMessage[]
   attachments     Attachment[]
   comments        Comment[]
   notifications   Notification[]
   searchIndexes   SearchIndex[]
+  savedFilters    SavedFilter[]
+  recentSearches  RecentSearch[]
   smtpSetting     SmtpSetting?
   approvalWorkflows ApprovalWorkflow[]
   approvalSteps   ApprovalStep[]
@@ -174,7 +296,15 @@ model Company {
   tags            Tag[]
   entityTags      EntityTag[]
   userPreferences UserPreference[]
+  subscriptions   CompanySubscription[]
+  subscriptionInvoices SubscriptionInvoice[]
+  usageSnapshots  PlatformUsageSnapshot[]
+  companySwitchSessions CompanySwitchSession[] @relation("CompanySwitchTarget")
+  actorCompanySwitchSessions CompanySwitchSession[] @relation("CompanySwitchActorCompany")
 
+  @@index([status])
+  @@index([plan])
+  @@index([trialEndsAt])
   @@map("companies")
 }
 
@@ -182,6 +312,7 @@ model User {
   id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   companyId    String     @map("company_id") @db.Uuid
   departmentId String?    @map("department_id") @db.Uuid
+  managerId    String?    @map("manager_id") @db.Uuid
   email        String
   passwordHash String     @map("password_hash")
   name         String
@@ -195,6 +326,8 @@ model User {
 
   company            Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   department         Department?    @relation("DepartmentUsers", fields: [departmentId], references: [id], onDelete: SetNull)
+  manager            User?          @relation("UserManager", fields: [managerId], references: [id], onDelete: SetNull)
+  directReports      User[]         @relation("UserManager")
   managedDepartments Department[]   @relation("DepartmentManager")
   userRoles          UserRole[]
   auditLogs          AuditLog[]
@@ -204,6 +337,10 @@ model User {
   assignedTasks      TaskAssignee[]
   watchedTasks       TaskWatcher[]
   leaveRequests      LeaveRequest[]
+  leaveBalances      LeaveBalance[]
+  createdEmails      Email[]       @relation("EmailCreator")
+  emailRecipients    EmailRecipient[] @relation("EmailRecipientUser")
+  createdEmailTemplates EmailTemplate[] @relation("EmailTemplateCreator")
   sentEmails         EmailMessage[] @relation("EmailSender")
   uploadedAttachments Attachment[]  @relation("AttachmentUploader")
   comments           Comment[]      @relation("CommentAuthor")
@@ -213,10 +350,15 @@ model User {
   createdTags        Tag[]          @relation("TagCreator")
   createdEntityTags  EntityTag[]    @relation("EntityTagCreator")
   preference         UserPreference?
+  savedFilters       SavedFilter[]
+  recentSearches     RecentSearch[]
+  companySwitchSessions CompanySwitchSession[] @relation("CompanySwitchActor")
 
   @@unique([companyId, email])
   @@index([companyId])
   @@index([departmentId])
+  @@index([managerId])
+  @@index([companyId, managerId])
   @@map("users")
 }
 
@@ -461,12 +603,21 @@ model LeaveRequest {
   employeeId   String      @map("employee_id") @db.Uuid
   departmentId String?     @map("department_id") @db.Uuid
   leaveTypeId  String?     @map("leave_type_id") @db.Uuid
+  requestNumber String?    @map("request_number")
+  requestType  LeaveRequestType @default(LEAVE) @map("request_type")
   leaveType    String      @map("leave_type")
   startsAt     DateTime    @map("starts_at") @db.Timestamptz(6)
   endsAt       DateTime    @map("ends_at") @db.Timestamptz(6)
+  startTime    DateTime?   @map("start_time") @db.Timestamptz(6)
+  endTime      DateTime?   @map("end_time") @db.Timestamptz(6)
+  durationType LeaveDurationType @default(FULL_DAY) @map("duration_type")
+  durationDays Decimal     @default(1) @map("duration_days") @db.Decimal(5, 2)
+  durationHours Decimal?   @map("duration_hours") @db.Decimal(5, 2)
+  halfDayPeriod LeaveHalfDayPeriod? @map("half_day_period")
   status       LeaveStatus @default(PENDING)
   reason       String?
   submittedAt  DateTime    @default(now()) @map("submitted_at") @db.Timestamptz(6)
+  infoRequestedAt DateTime? @map("info_requested_at") @db.Timestamptz(6)
   approvedAt   DateTime?   @map("approved_at") @db.Timestamptz(6)
   rejectedAt   DateTime?   @map("rejected_at") @db.Timestamptz(6)
   cancelledAt  DateTime?   @map("cancelled_at") @db.Timestamptz(6)
@@ -481,7 +632,9 @@ model LeaveRequest {
 
   @@index([companyId, status])
   @@index([companyId, leaveTypeId])
+  @@index([companyId, requestType])
   @@index([employeeId])
+  @@unique([companyId, requestNumber])
   @@map("leave_requests")
 }
 
@@ -500,10 +653,47 @@ model LeaveType {
 
   company       Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   leaveRequests LeaveRequest[]
+  leaveBalances LeaveBalance[]
 
   @@unique([companyId, code])
   @@index([companyId, isActive])
   @@map("leave_types")
+}
+
+model LeaveBalance {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  employeeId    String    @map("employee_id") @db.Uuid
+  leaveTypeId   String    @map("leave_type_id") @db.Uuid
+  allocatedDays Decimal   @default(0) @map("allocated_days") @db.Decimal(6, 2)
+  usedDays      Decimal   @default(0) @map("used_days") @db.Decimal(6, 2)
+  remainingDays Decimal   @default(0) @map("remaining_days") @db.Decimal(6, 2)
+  year          Int
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee  User      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, employeeId, leaveTypeId, year])
+  @@index([companyId, employeeId, year])
+  @@index([leaveTypeId])
+  @@map("leave_balances")
+}
+
+model LeaveSetting {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String            @unique @map("company_id") @db.Uuid
+  approvalMode LeaveApprovalMode @default(MANAGER_HR) @map("approval_mode")
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime?         @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("leave_settings")
 }
 
 model EmailMessage {
@@ -529,6 +719,106 @@ model EmailMessage {
   @@map("email_messages")
 }
 
+model Email {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId         String      @map("company_id") @db.Uuid
+  createdById       String?     @map("created_by_id") @db.Uuid
+  templateId        String?     @map("template_id") @db.Uuid
+  subject           String
+  body              String      @db.Text
+  status            EmailStatus @default(DRAFT)
+  fromName          String?     @map("from_name")
+  fromEmail         String?     @map("from_email")
+  replyTo           String?     @map("reply_to")
+  queuedAt          DateTime?   @map("queued_at") @db.Timestamptz(6)
+  sentAt            DateTime?   @map("sent_at") @db.Timestamptz(6)
+  failedAt          DateTime?   @map("failed_at") @db.Timestamptz(6)
+  cancelledAt       DateTime?   @map("cancelled_at") @db.Timestamptz(6)
+  failureReason     String?     @map("failure_reason") @db.Text
+  provider          String?
+  providerMessageId String?     @map("provider_message_id")
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?   @map("deleted_at") @db.Timestamptz(6)
+
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy   User?            @relation("EmailCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  template    EmailTemplate?   @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  recipients  EmailRecipient[]
+  attachments EmailAttachment[]
+
+  @@index([companyId, status, createdAt])
+  @@index([companyId, createdAt])
+  @@index([createdById])
+  @@index([templateId])
+  @@map("emails")
+}
+
+model EmailRecipient {
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId     String             @map("company_id") @db.Uuid
+  emailId       String             @map("email_id") @db.Uuid
+  userId        String?            @map("user_id") @db.Uuid
+  recipientType EmailRecipientType @default(EXTERNAL) @map("recipient_type")
+  recipientKind EmailRecipientKind @map("recipient_kind")
+  email         String
+  name          String?
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?          @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  message Email   @relation(fields: [emailId], references: [id], onDelete: Cascade)
+  user    User?   @relation("EmailRecipientUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, emailId, recipientKind, email])
+  @@index([companyId, emailId])
+  @@index([companyId, email])
+  @@index([userId])
+  @@map("email_recipients")
+}
+
+model EmailTemplate {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  createdById String?   @map("created_by_id") @db.Uuid
+  name        String
+  subject     String
+  body        String    @db.Text
+  isSystem    Boolean   @default(false) @map("is_system")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy User?   @relation("EmailTemplateCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  emails    Email[]
+
+  @@unique([companyId, name])
+  @@index([companyId, isSystem])
+  @@index([createdById])
+  @@map("email_templates")
+}
+
+model EmailAttachment {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  emailId      String    @map("email_id") @db.Uuid
+  attachmentId String    @map("attachment_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  email      Email      @relation(fields: [emailId], references: [id], onDelete: Cascade)
+  attachment Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, emailId, attachmentId])
+  @@index([companyId, emailId])
+  @@index([attachmentId])
+  @@map("email_attachments")
+}
+
 model Attachment {
   id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   companyId    String     @map("company_id") @db.Uuid
@@ -545,6 +835,7 @@ model Attachment {
 
   company    Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   uploadedBy User?   @relation("AttachmentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  emailLinks  EmailAttachment[]
 
   @@index([companyId, entityType, entityId])
   @@index([uploadedById])
@@ -609,6 +900,44 @@ model SearchIndex {
   @@unique([companyId, entityType, entityId])
   @@index([companyId, title])
   @@map("search_index")
+}
+
+model SavedFilter {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId  String     @map("company_id") @db.Uuid
+  userId     String     @map("user_id") @db.Uuid
+  entityType EntityType @map("entity_type")
+  name       String
+  filterJson Json       @map("filter_json")
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt  DateTime?  @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId, entityType, name])
+  @@index([companyId, userId, entityType])
+  @@index([userId])
+  @@map("saved_filters")
+}
+
+model RecentSearch {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String    @map("company_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  query     String
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId, query])
+  @@index([companyId, userId, createdAt])
+  @@index([userId])
+  @@map("recent_searches")
 }
 
 model SmtpSetting {
@@ -761,4 +1090,146 @@ model UserPreference {
   @@unique([companyId, userId])
   @@index([companyId])
   @@map("user_preferences")
+}
+
+model SubscriptionPlan {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code          String      @unique
+  name          String
+  description   String?
+  tier          CompanyPlan @default(STARTER)
+  monthlyPrice  Decimal     @default(0) @map("monthly_price") @db.Decimal(10, 2)
+  yearlyPrice   Decimal     @default(0) @map("yearly_price") @db.Decimal(10, 2)
+  currency      String      @default("USD")
+  maxUsers      Int?        @map("max_users")
+  maxStorageMb  Int?        @map("max_storage_mb")
+  maxCompanies  Int?        @map("max_companies")
+  features      Json        @default("{}")
+  isActive      Boolean     @default(true) @map("is_active")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?   @map("deleted_at") @db.Timestamptz(6)
+
+  subscriptions CompanySubscription[]
+
+  @@index([tier, isActive])
+  @@map("subscription_plans")
+}
+
+model CompanySubscription {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId          String             @map("company_id") @db.Uuid
+  planId             String             @map("plan_id") @db.Uuid
+  status             SubscriptionStatus @default(TRIALING)
+  billingInterval    BillingInterval    @default(MONTHLY) @map("billing_interval")
+  seats              Int                @default(1)
+  startsAt           DateTime           @default(now()) @map("starts_at") @db.Timestamptz(6)
+  trialEndsAt        DateTime?          @map("trial_ends_at") @db.Timestamptz(6)
+  currentPeriodStart DateTime?          @map("current_period_start") @db.Timestamptz(6)
+  currentPeriodEnd   DateTime?          @map("current_period_end") @db.Timestamptz(6)
+  cancelledAt        DateTime?          @map("cancelled_at") @db.Timestamptz(6)
+  metadata           Json               @default("{}")
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime?          @map("deleted_at") @db.Timestamptz(6)
+
+  company  Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  plan     SubscriptionPlan      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  invoices SubscriptionInvoice[]
+
+  @@index([companyId, status])
+  @@index([planId, status])
+  @@index([currentPeriodEnd])
+  @@map("company_subscriptions")
+}
+
+model SubscriptionInvoice {
+  id             String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String                    @map("company_id") @db.Uuid
+  subscriptionId String?                   @map("subscription_id") @db.Uuid
+  invoiceNumber  String                    @map("invoice_number")
+  status         SubscriptionInvoiceStatus @default(DRAFT)
+  currency       String                    @default("USD")
+  amountDue      Decimal                   @default(0) @map("amount_due") @db.Decimal(12, 2)
+  amountPaid     Decimal                   @default(0) @map("amount_paid") @db.Decimal(12, 2)
+  dueAt          DateTime?                 @map("due_at") @db.Timestamptz(6)
+  paidAt         DateTime?                 @map("paid_at") @db.Timestamptz(6)
+  voidedAt       DateTime?                 @map("voided_at") @db.Timestamptz(6)
+  metadata       Json                      @default("{}")
+  createdAt      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?                 @map("deleted_at") @db.Timestamptz(6)
+
+  company      Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  subscription CompanySubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, invoiceNumber])
+  @@index([companyId, status, dueAt])
+  @@index([subscriptionId])
+  @@map("subscription_invoices")
+}
+
+model PlatformUsageSnapshot {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId          String    @map("company_id") @db.Uuid
+  periodStart        DateTime  @map("period_start") @db.Timestamptz(6)
+  periodEnd          DateTime  @map("period_end") @db.Timestamptz(6)
+  usersCount         Int       @default(0) @map("users_count")
+  activeUsersCount   Int       @default(0) @map("active_users_count")
+  tasksCount         Int       @default(0) @map("tasks_count")
+  openTasksCount     Int       @default(0) @map("open_tasks_count")
+  leaveRequestsCount Int       @default(0) @map("leave_requests_count")
+  emailsSentCount    Int       @default(0) @map("emails_sent_count")
+  storageBytes       BigInt    @default(0) @map("storage_bytes")
+  metadata           Json      @default("{}")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, periodStart, periodEnd])
+  @@index([companyId, periodEnd])
+  @@map("platform_usage_snapshots")
+}
+
+model CompanySwitchSession {
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String              @map("company_id") @db.Uuid
+  actorCompanyId String              @map("actor_company_id") @db.Uuid
+  actorUserId    String              @map("actor_user_id") @db.Uuid
+  status         CompanySwitchStatus @default(ACTIVE)
+  reason         String?
+  startedAt      DateTime            @default(now()) @map("started_at") @db.Timestamptz(6)
+  expiresAt      DateTime            @map("expires_at") @db.Timestamptz(6)
+  endedAt        DateTime?           @map("ended_at") @db.Timestamptz(6)
+  revokedAt      DateTime?           @map("revoked_at") @db.Timestamptz(6)
+  metadata       Json                @default("{}")
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?           @map("deleted_at") @db.Timestamptz(6)
+
+  targetCompany Company @relation("CompanySwitchTarget", fields: [companyId], references: [id], onDelete: Restrict)
+  actorCompany  Company @relation("CompanySwitchActorCompany", fields: [actorCompanyId], references: [id], onDelete: Restrict)
+  actorUser     User    @relation("CompanySwitchActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status])
+  @@index([actorUserId, status])
+  @@index([expiresAt])
+  @@map("company_switch_sessions")
+}
+
+model PlatformSetting {
+  id          String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String                   @unique
+  value       Json
+  valueType   PlatformSettingValueType @default(STRING) @map("value_type")
+  description String?
+  isSecret    Boolean                  @default(false) @map("is_secret")
+  createdAt   DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime?                @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([valueType])
+  @@map("platform_settings")
 }

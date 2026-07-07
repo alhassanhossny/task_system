@@ -2,7 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Filter, Plus, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useAuth } from "@/features/auth/auth-store";
 import { PriorityBadge, StatusBadge } from "@/features/prototype/badges";
@@ -31,12 +32,25 @@ export function TasksListView() {
   const { t, lang } = useUiText();
   const { accessToken, user } = useAuth();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const context = useMemo(() => (accessToken && user ? { token: accessToken, companyId: user.companyId } : null), [accessToken, user]);
   const [filters, setFilters] = useState<TaskFilters>({});
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const { users, departments } = useTaskOptions(context);
+
+  useEffect(() => {
+    setFilters({
+      status: (searchParams.get("status") as TaskStatus | null) ?? undefined,
+      priority: (searchParams.get("priority") as TaskPriority | null) ?? undefined,
+      departmentId: searchParams.get("departmentId") ?? undefined,
+      assignedToId: searchParams.get("assignedToId") ?? undefined,
+      dueFrom: searchParams.get("dueFrom") ?? undefined,
+      dueTo: searchParams.get("dueTo") ?? undefined,
+      search: searchParams.get("search") ?? undefined
+    });
+  }, [searchParams]);
 
   const tasksQuery = useQuery({
     queryKey: taskQueryKeys.list(filters),
