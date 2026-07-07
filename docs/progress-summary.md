@@ -4,11 +4,11 @@ Last updated: 2026-07-07
 
 ## Current Status
 
-Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, Phase 2B Leave Requests Core, Phase 2B.1 Leave Enhancements, Phase 2B.2 Manager Hierarchy & Team Management, Phase 2C Global Search & Productivity Layer, Phase 3 Email Center, and Phase 4 Step 8 Super Admin Web Dashboard are implemented.
+Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, Phase 2B Leave Requests Core, Phase 2B.1 Leave Enhancements, Phase 2B.2 Manager Hierarchy & Team Management, Phase 2C Global Search & Productivity Layer, Phase 3 Email Center, Phase 4 Step 8 Super Admin Web Dashboard, and Phase 5 Step 1 GitHub Actions CI/CD Pipeline are implemented.
 
 Current Git state:
 
-- Branch: `feature-super-admin-portal`
+- Branch: `feature-phase5-production-readiness`
 - Base branch `main` includes merged Phase 2B through `f902ce7 Update Phase 2B progress summary`.
 - Latest implementation commit: `Implement Phase 2B.1 leave enhancements`.
 - Latest login fix commit: `925603c Fix local login CORS origins`.
@@ -17,6 +17,7 @@ Current Git state:
 - Latest Phase 2C work: `Implement Phase 2C global search and productivity layer`.
 - Latest Phase 3 work: `Implement Phase 3 email center`.
 - Latest Phase 4 work: `Prepare v1.0.0-beta release baseline`.
+- Latest Phase 5 work: `Add Phase 5 GitHub Actions CI/CD pipeline`.
 - Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature-super-admin-portal`
 
 The repository now contains:
@@ -1307,6 +1308,110 @@ Super Admin feature coverage check:
   - `/ar/platform` returned HTTP 200.
   - `/ar/employees` returned HTTP 200, but remains tenant/prototype UI as noted above.
 
+## Implemented Phase 5 Step 1 GitHub Actions CI/CD Pipeline
+
+Implemented on branch `feature-phase5-production-readiness`.
+
+Completed checkpoints:
+
+- Created GitHub workflow directory:
+  - `.github/workflows/`
+- Added CI workflow:
+  - `.github/workflows/ci.yml`
+  - runs on `push`
+  - runs on `pull_request`
+  - installs dependencies with Corepack and pnpm
+  - generates Prisma Client
+  - applies frozen migrations with `prisma migrate deploy`
+  - seeds the database
+  - runs typecheck
+  - runs lint
+  - runs the full regression suite
+  - runs production build
+- Added release artifact workflow:
+  - `.github/workflows/release.yml`
+  - runs on tags matching `v*`
+  - validates the project
+  - builds production artifacts
+  - uploads release-ready build output
+  - does not deploy
+- Added dependency review workflow:
+  - `.github/workflows/dependency-review.yml`
+  - runs on pull requests
+  - uses GitHub dependency review
+- Added CodeQL workflow:
+  - `.github/workflows/codeql.yml`
+  - covers JavaScript and TypeScript
+  - runs on push, pull request, and weekly schedule
+- Configured CI service containers:
+  - PostgreSQL 16
+  - Redis 7
+  - health checks for both services
+- Configured caches:
+  - pnpm store cache keyed by `pnpm-lock.yaml`
+  - Prisma engine/client cache keyed by `apps/api/prisma/schema.prisma` and `pnpm-lock.yaml`
+- Configured artifacts:
+  - CI test logs
+  - CI build output
+  - optional coverage artifacts when coverage files exist
+  - release test logs
+  - release build output
+  - optional release coverage artifacts when coverage files exist
+- Preserved existing architecture:
+  - no business features added
+  - no public API contracts changed
+  - no Prisma schema changes
+  - no existing Prisma migrations modified
+- Added minimal production build fix discovered during validation:
+  - wrapped `EmailView`, `LeavesView`, and `TasksListView` page entries in React `Suspense`
+  - resolves Next.js 15 production build requirement for client components using `useSearchParams`
+  - no UI behavior change intended
+- Hardened an existing regression cleanup race:
+  - `test:leave-enhancements` now performs a final `searchIndex` cleanup before deleting its test company
+  - prevents late async event side effects from causing a foreign-key cleanup failure
+
+Validation checkpoint:
+
+- Workflow YAML parsed successfully:
+  - `.github/workflows/ci.yml`
+  - `.github/workflows/release.yml`
+  - `.github/workflows/dependency-review.yml`
+  - `.github/workflows/codeql.yml`
+- `corepack pnpm db:generate` passed.
+- `corepack pnpm typecheck` passed.
+- `corepack pnpm lint` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tenant-isolation` passed outside the sandbox after the known `tsx` IPC sandbox limitation.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tasks-core` passed outside the sandbox.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:leave-requests-core` passed outside the sandbox.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:leave-enhancements` passed outside the sandbox.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:leave-balances` passed outside the sandbox.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:calendar` passed outside the sandbox.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:permissions` passed outside the sandbox.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:team-management` passed outside the sandbox.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:global-search` passed outside the sandbox.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:email-center` passed outside the sandbox.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-management` passed outside the sandbox.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-subscriptions` passed outside the sandbox.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-company-switching` passed outside the sandbox.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-analytics` passed outside the sandbox.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-usage-snapshots` passed outside the sandbox.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-security` passed outside the sandbox.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-dashboard` passed outside the sandbox.
+- `corepack pnpm build` passed.
+
+Known limitations:
+
+- GitHub Actions workflows have been authored and locally validated for syntax, but must still be executed on GitHub after pushing the branch.
+- Coverage artifacts are configured with `if-no-files-found: ignore` because current test scripts do not generate coverage by default.
+- Release workflow uploads build artifacts only; deployment remains intentionally out of scope.
+- The local sandbox blocks `tsx` IPC pipes under `/tmp/tsx-*`; regression tests were rerun outside the sandbox per `AGENTS.md`.
+
+Recommended next checkpoint:
+
+- Push `feature-phase5-production-readiness` to GitHub.
+- Open a pull request and verify all GitHub Actions complete successfully.
+- Phase 5 Step 2 should focus on production health checks and observability after CI is confirmed.
+
 ## Recent Fixes
 
 - Added locale root redirects:
@@ -1441,7 +1546,7 @@ The following work remains after the `v1.0.0-beta` baseline:
   - user status management
   - password reset/admin reset support
 - Phase 5 production readiness:
-  - GitHub Actions verification
+  - GitHub Actions pull request verification
   - branch protection
   - monitoring and health checks
   - structured logging
@@ -1477,3 +1582,4 @@ Recent completed commits:
 - `Complete platform analytics snapshot pipeline and query optimization`
 - `Add platform endpoint authorization tests`
 - `Implement Phase 4 super admin web dashboard`
+- `Add Phase 5 GitHub Actions CI/CD pipeline`

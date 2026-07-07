@@ -1,0 +1,191 @@
+name: Release Artifacts
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+env:
+  DATABASE_URL: postgresql://taskflow:taskflow@localhost:5432/taskflow?schema=public
+  JWT_SECRET: release-jwt-secret
+  JWT_EXPIRES_IN: 15m
+  JWT_REFRESH_EXPIRES_IN: 7d
+  SMTP_ENCRYPTION_KEY: release-smtp-encryption-key-32b
+  STORAGE_PUBLIC_BASE_URL: http://localhost:4000/storage
+  NEXT_PUBLIC_API_URL: http://localhost:4000
+  WEB_ORIGIN: http://localhost:3000,http://127.0.0.1:3000,http://0.0.0.0:3000
+  REDIS_HOST: localhost
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+
+jobs:
+  build:
+    name: Validate and Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: taskflow
+          POSTGRES_USER: taskflow
+          POSTGRES_PASSWORD: taskflow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U taskflow -d taskflow"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        shell: bash
+        run: echo "path=$(corepack pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Cache Prisma engines
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/prisma
+            node_modules/.prisma
+            apps/api/node_modules/.prisma
+          key: ${{ runner.os }}-prisma-${{ hashFiles('apps/api/prisma/schema.prisma', 'pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-prisma-
+
+      - name: Install dependencies
+        shell: bash
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Prepare logs
+        shell: bash
+        run: mkdir -p artifacts/test-logs
+
+      - name: Prisma generate
+        shell: bash
+        run: |
+          set -o pipefail
+          corepack pnpm db:generate 2>&1 | tee artifacts/test-logs/db-generate.log
+
+      - name: Run migrations
+        shell: bash
+        run: |
+          set -o pipefail
+          corepack pnpm --filter @taskflow/api exec prisma migrate deploy --schema prisma/schema.prisma 2>&1 | tee artifacts/test-logs/prisma-migrate-deploy.log
+
+      - name: Seed database
+        shell: bash
+        run: |
+          set -o pipefail
+          corepack pnpm db:seed 2>&1 | tee artifacts/test-logs/db-seed.log
+
+      - name: Typecheck
+        shell: bash
+        run: |
+          set -o pipefail
+          corepack pnpm typecheck 2>&1 | tee artifacts/test-logs/typecheck.log
+
+      - name: Lint
+        shell: bash
+        run: |
+          set -o pipefail
+          corepack pnpm lint 2>&1 | tee artifacts/test-logs/lint.log
+
+      - name: Regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          tests=(
+            test:tenant-isolation
+            test:tasks-core
+            test:leave-requests-core
+            test:leave-enhancements
+            test:leave-balances
+            test:calendar
+            test:permissions
+            test:team-management
+            test:global-search
+            test:email-center
+            test:platform-company-management
+            test:platform-subscriptions
+            test:platform-company-switching
+            test:platform-analytics
+            test:platform-usage-snapshots
+            test:platform-security
+            test:platform-dashboard
+          )
+
+          for test_name in "${tests[@]}"; do
+            log_name="${test_name//:/-}.log"
+            corepack pnpm "$test_name" 2>&1 | tee "artifacts/test-logs/${log_name}"
+          done
+
+      - name: Build project
+        shell: bash
+        run: |
+          set -o pipefail
+          corepack pnpm build 2>&1 | tee artifacts/test-logs/build.log
+
+      - name: Upload test logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-test-logs
+          path: artifacts/test-logs
+          if-no-files-found: ignore
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-coverage
+          path: |
+            coverage
+            apps/**/coverage
+            packages/**/coverage
+          if-no-files-found: ignore
+
+      - name: Upload production build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: taskflow-production-build
+          path: |
+            apps/api/dist
+            apps/web/.next
+            packages/**/dist
+          if-no-files-found: error
+          retention-days: 14

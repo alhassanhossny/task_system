@@ -167,6 +167,7 @@ async function cleanup(companyId: string) {
   await prisma.role.deleteMany({ where: { companyId } });
   await prisma.department.deleteMany({ where: { companyId } });
   await prisma.user.deleteMany({ where: { companyId } });
+  await prisma.searchIndex.deleteMany({ where: { companyId } });
   await prisma.company.deleteMany({ where: { id: companyId } });
 }
 
