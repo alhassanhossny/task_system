@@ -1250,9 +1250,11 @@ Full local validation checkpoint:
 
 Release actions:
 
-- `feature-super-admin-portal` is ready to merge into `main`.
-- `v1.0.0-beta` should be created on `main` after the release-prep commit is merged.
-- Remote push and CI verification still require GitHub credentials on the machine.
+- `feature-super-admin-portal` was merged into `main` locally.
+- `v1.0.0-beta` was created locally on `main`.
+- Push attempts for `main` and `v1.0.0-beta` failed because GitHub credentials are not configured in this shell:
+  - `fatal: could not read Username for 'https://github.com': No such device or address`
+- CI verification remains pending until the local `main` branch and `v1.0.0-beta` tag are pushed to GitHub from an authenticated environment.
 
 ## Recent Fixes
 
