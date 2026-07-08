@@ -87,27 +87,15 @@ async function main() {
     });
 
     assert.equal(created.taskNumber, "TASK-00001");
-    assert.equal(created.status, TaskStatus.ASSIGNED);
-    assert.equal(created.assignees.length, 1);
-    assert.equal(created.watchers.length, 3, "creator, assignee, and watcher should watch the task");
+    assert.equal(created.status, TaskStatus.NEW);
+    assert.equal(created.assignees.length, 0, "new tasks should remain unassigned until the explicit assignment action");
+    assert.equal(created.watchers.length, 2, "creator and explicit watcher should watch the new task");
 
     await waitFor(async () => {
       const searchEntry = await prisma.searchIndex.findFirst({
         where: { companyId: company.id, entityType: EntityType.TASK, entityId: created.id, deletedAt: null }
       });
       return Boolean(searchEntry?.content.includes("TASK-00001"));
-    });
-
-    await waitFor(async () => {
-      const assignedNotification = await prisma.notification.findFirst({
-        where: {
-          companyId: company.id,
-          userId: assignee.id,
-          type: NotificationType.TASK_ASSIGNED,
-          entityId: created.id
-        }
-      });
-      return Boolean(assignedNotification);
     });
 
     const updated = await tasksService.update(company.id, creator.id, created.id, {
@@ -121,6 +109,19 @@ async function main() {
     });
     assert.equal(reassigned.assignees.length, 2);
     assert.equal(reassigned.watchers.length, 3, "Reassigning should keep existing watchers and add assignees");
+    assert.equal(reassigned.status, TaskStatus.ASSIGNED);
+
+    await waitFor(async () => {
+      const assignedNotification = await prisma.notification.findFirst({
+        where: {
+          companyId: company.id,
+          userId: assignee.id,
+          type: NotificationType.TASK_ASSIGNED,
+          entityId: created.id
+        }
+      });
+      return Boolean(assignedNotification);
+    });
 
     const comment = await tasksService.addComment(company.id, assignee.id, created.id, {
       content: "Regression comment"
@@ -187,7 +188,7 @@ async function main() {
         }
       });
 
-      return Boolean(searchEntry?.deletedAt) && activityCount >= 9;
+      return Boolean(searchEntry?.deletedAt) && activityCount >= 8;
     });
 
     console.log("Task core assertions passed for workflow, collaboration, events, notifications, and search.");

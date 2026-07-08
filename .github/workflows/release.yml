@@ -118,6 +118,7 @@ jobs:
           tests=(
             test:tenant-isolation
             test:tasks-core
+            test:notifications
             test:leave-requests-core
             test:leave-enhancements
             test:leave-balances
@@ -133,6 +134,7 @@ jobs:
             test:platform-usage-snapshots
             test:platform-security
             test:platform-dashboard
+            test:session-persistence
           )
 
           for test_name in "${tests[@]}"; do

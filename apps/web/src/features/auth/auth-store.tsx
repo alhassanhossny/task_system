@@ -10,6 +10,7 @@ interface SessionState {
 }
 
 interface AuthContextValue extends SessionState {
+  isHydrated: boolean;
   setSession: (session: Required<SessionState>) => void;
   clearSession: () => void;
 }
@@ -38,25 +39,30 @@ function readInitialSession(): SessionState {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSessionState] = useState<SessionState>({ accessToken: null, refreshToken: null, user: null });
+  const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
     setSessionState(readInitialSession());
+    setIsHydrated(true);
   }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       ...session,
+      isHydrated,
       setSession(nextSession) {
         setSessionState(nextSession);
+        setIsHydrated(true);
         window.localStorage.setItem(storageKey, JSON.stringify(nextSession));
       },
       clearSession() {
         const empty = { accessToken: null, refreshToken: null, user: null };
         setSessionState(empty);
+        setIsHydrated(true);
         window.localStorage.removeItem(storageKey);
       }
     }),
-    [session]
+    [isHydrated, session]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

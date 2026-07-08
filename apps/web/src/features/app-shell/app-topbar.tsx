@@ -3,8 +3,10 @@
 import { useTheme } from "next-themes";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, Building2, ChevronDown, Globe, LogOut, Menu, Moon, Search, Sun } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/features/auth/auth-store";
+import { notificationQueryKeys, notificationsService } from "@/features/notifications/notifications-service";
 import type { Lang, UiText } from "@/features/prototype/types";
 import { CommandPalette } from "@/features/search/command-palette";
 import { pageTitleFromPath } from "./nav";
@@ -30,6 +32,13 @@ export function AppTopbar({
   const [themeMounted, setThemeMounted] = useState(false);
   const isDark = themeMounted && resolvedTheme === "dark";
   const title = pageTitleFromPath(pathname, t);
+  const notificationContext = useMemo(() => (auth.accessToken && auth.user ? { token: auth.accessToken, companyId: auth.user.companyId } : null), [auth.accessToken, auth.user]);
+  const notificationsQuery = useQuery({
+    queryKey: notificationQueryKeys.list(20),
+    queryFn: () => notificationsService.list(notificationContext!, 20),
+    enabled: Boolean(notificationContext)
+  });
+  const unreadCount = notificationsQuery.data?.filter((notification) => !notification.isRead).length ?? 0;
 
   useEffect(() => {
     setThemeMounted(true);
@@ -113,9 +122,9 @@ export function AppTopbar({
             className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground relative"
           >
             <Bell className="w-4.5 h-4.5" />
-            <span className="absolute top-2 end-2 w-1.5 h-1.5 bg-red-500 rounded-full ring-1 ring-card" />
+            {unreadCount > 0 && <span className="absolute top-2 end-2 w-1.5 h-1.5 bg-red-500 rounded-full ring-1 ring-card" />}
           </button>
-          <NotificationDropdown open={notifOpen} onClose={() => setNotifOpen(false)} t={t} lang={lang} />
+          <NotificationDropdown open={notifOpen} onClose={() => setNotifOpen(false)} t={t} lang={lang} context={notificationContext} />
         </div>
 
         <button

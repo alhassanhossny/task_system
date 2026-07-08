@@ -76,10 +76,9 @@ export class TasksService {
 
   async create(companyId: string, actorId: string, dto: CreateTaskDto) {
     await this.validateDepartment(companyId, dto.departmentId);
-    await this.validateUsers(companyId, [...(dto.assigneeIds ?? []), ...(dto.watcherIds ?? [])]);
+    await this.validateUsers(companyId, dto.watcherIds ?? []);
 
-    const assigneeIds = this.uniqueIds(dto.assigneeIds ?? []);
-    const watcherIds = this.uniqueIds([...(dto.watcherIds ?? []), actorId, ...assigneeIds]);
+    const watcherIds = this.uniqueIds([...(dto.watcherIds ?? []), actorId]);
 
     const task = await this.prisma.$transaction(async (tx) => {
       const created = await this.createTaskWithNumber(tx, companyId, {
@@ -91,10 +90,9 @@ export class TasksService {
         priority: dto.priority,
         dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined,
         estimatedHours: dto.estimatedHours,
-        status: assigneeIds.length ? TaskStatus.ASSIGNED : TaskStatus.NEW
+        status: TaskStatus.NEW
       });
 
-      await this.syncTaskAssignees(tx, companyId, created.id, assigneeIds);
       await this.syncTaskWatchers(tx, companyId, created.id, watcherIds);
 
       return tx.task.findUniqueOrThrow({
@@ -107,18 +105,8 @@ export class TasksService {
       taskId: task.id,
       taskNumber: task.taskNumber,
       title: task.title,
-      description: task.description,
-      assigneeIds
+      description: task.description
     });
-
-    if (assigneeIds.length) {
-      this.publishTaskEvent("TASK_ASSIGNED", companyId, actorId, task.id, {
-        taskId: task.id,
-        taskNumber: task.taskNumber,
-        title: task.title,
-        assigneeIds
-      });
-    }
 
     return task;
   }

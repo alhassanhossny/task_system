@@ -70,7 +70,6 @@ export function buildCreatePayload(values: TaskFormValues): CreateTaskPayload {
     description: values.description || undefined,
     priority: values.priority,
     departmentId: values.departmentId || undefined,
-    assigneeIds: values.assigneeId ? [values.assigneeId] : [],
     dueAt: values.dueAt ? new Date(values.dueAt).toISOString() : undefined,
     estimatedHours: values.estimatedHours
   };
@@ -233,17 +232,19 @@ export function TaskFormModal({
               ))}
             </select>
           </label>
-          <label>
-            <span className="text-xs font-semibold text-muted-foreground">{lang === "ar" ? "المُكلَّف" : "Assignee"}</span>
-            <select {...register("assigneeId")} className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/30">
-              <option value="">{lang === "ar" ? "غير معين" : "Unassigned"}</option>
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          {task && (
+            <label>
+              <span className="text-xs font-semibold text-muted-foreground">{lang === "ar" ? "المُكلَّف" : "Assignee"}</span>
+              <select {...register("assigneeId")} className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/30">
+                <option value="">{lang === "ar" ? "غير معين" : "Unassigned"}</option>
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label>
             <span className="text-xs font-semibold text-muted-foreground">{lang === "ar" ? "تاريخ الاستحقاق" : "Due date"}</span>
             <input {...register("dueAt")} type="date" className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/30" />

@@ -16,10 +16,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const fixedSurface = pathname.includes("/email") || pathname.includes("/tasks/kanban");
 
   useEffect(() => {
-    if (!auth.accessToken) {
+    if (auth.isHydrated && !auth.accessToken) {
       router.replace(`/${lang}/login`);
     }
-  }, [auth.accessToken, lang, router]);
+  }, [auth.accessToken, auth.isHydrated, lang, router]);
+
+  if (!auth.isHydrated) {
+    return <div className="h-screen bg-background" />;
+  }
 
   return (
     <div className="h-screen overflow-hidden bg-background text-foreground">

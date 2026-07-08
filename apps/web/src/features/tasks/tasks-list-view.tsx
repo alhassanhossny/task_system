@@ -70,9 +70,8 @@ export function TasksListView() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ task, values }: { task: Task; values: TaskFormValues }) => {
-      const updated = await tasksService.update(context!, task.id, buildUpdatePayload(values));
-      await tasksService.assign(context!, task.id, values.assigneeId ? [values.assigneeId] : []);
-      return updated;
+      await tasksService.update(context!, task.id, buildUpdatePayload(values));
+      return tasksService.assign(context!, task.id, values.assigneeId ? [values.assigneeId] : []);
     },
     onSuccess: (task) => {
       setFormOpen(false);

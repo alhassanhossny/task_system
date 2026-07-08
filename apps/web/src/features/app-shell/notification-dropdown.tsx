@@ -1,25 +1,44 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, X } from "lucide-react";
 import { useEffect } from "react";
+import { notificationQueryKeys, notificationsService } from "@/features/notifications/notifications-service";
 import type { Lang, UiText } from "@/features/prototype/types";
 
 export function NotificationDropdown({
   open,
   onClose,
   t,
-  lang
+  lang,
+  context
 }: {
   open: boolean;
   onClose: () => void;
   t: UiText;
   lang: Lang;
+  context: { token: string; companyId: string } | null;
 }) {
-  const notifications = [
-    { id: 1, text: lang === "ar" ? "مهمة جديدة: \"تطوير واجهة المستخدم\"" : "New task assigned: \"Develop UI Interface\"", time: lang === "ar" ? "منذ ١٠ د" : "10m ago", unread: true },
-    { id: 2, text: lang === "ar" ? "وافقت سارة على طلب إجازتك" : "Sara approved your leave request", time: lang === "ar" ? "منذ ١ س" : "1h ago", unread: true },
-    { id: 3, text: lang === "ar" ? "رسالة جديدة من محمد الحربي" : "New email from Mohammed Al-Harbi", time: lang === "ar" ? "منذ ٢ س" : "2h ago", unread: false }
-  ];
+  const queryClient = useQueryClient();
+  const notificationsQuery = useQuery({
+    queryKey: notificationQueryKeys.list(20),
+    queryFn: () => notificationsService.list(context!, 20),
+    enabled: open && Boolean(context)
+  });
+  const markReadMutation = useMutation({
+    mutationFn: (id: string) => notificationsService.markRead(context!, id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: notificationQueryKeys.all });
+    }
+  });
+  const markAllReadMutation = useMutation({
+    mutationFn: () => notificationsService.markAllRead(context!),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: notificationQueryKeys.all });
+    }
+  });
+  const notifications = notificationsQuery.data ?? [];
+  const unreadCount = notifications.filter((notification) => !notification.isRead).length;
 
   useEffect(() => {
     if (!open) {
@@ -57,7 +76,12 @@ export function NotificationDropdown({
             <span className="truncate text-sm font-bold text-foreground">{t.notifications}</span>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" className="whitespace-nowrap text-xs font-medium text-primary hover:underline">
+            <button
+              type="button"
+              onClick={() => markAllReadMutation.mutate()}
+              disabled={!context || unreadCount === 0 || markAllReadMutation.isPending}
+              className="whitespace-nowrap text-xs font-medium text-primary hover:underline disabled:pointer-events-none disabled:text-muted-foreground"
+            >
               {t.markAllRead}
             </button>
             <button type="button" onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground">
@@ -66,18 +90,27 @@ export function NotificationDropdown({
           </div>
         </div>
         <div className="max-h-[min(24rem,calc(100vh-5rem))] overflow-y-auto">
+          {notificationsQuery.isLoading && <DropdownState label={t.loading} />}
+          {notificationsQuery.isError && <DropdownState label={t.error} />}
+          {!notificationsQuery.isLoading && !notificationsQuery.isError && notifications.length === 0 && <DropdownState label={t.empty} />}
           {notifications.map((notification) => (
             <button
               key={notification.id}
               type="button"
+              onClick={() => {
+                if (!notification.isRead) {
+                  markReadMutation.mutate(notification.id);
+                }
+              }}
               className={`flex w-full items-start gap-3 border-b border-border/50 px-4 py-3 text-start transition-colors last:border-b-0 hover:bg-muted/40 ${
-                notification.unread ? "bg-blue-50/30 dark:bg-blue-900/10" : ""
+                !notification.isRead ? "bg-blue-50/30 dark:bg-blue-900/10" : ""
               }`}
             >
-              <span className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${notification.unread ? "bg-blue-500" : "bg-transparent"}`} />
+              <span className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${!notification.isRead ? "bg-blue-500" : "bg-transparent"}`} />
               <span className="min-w-0 flex-1">
-                <span className="block text-sm leading-relaxed text-foreground">{notification.text}</span>
-                <span className="mt-1 block text-xs text-muted-foreground">{notification.time}</span>
+                <span className="block text-sm font-semibold leading-relaxed text-foreground">{notification.title}</span>
+                <span className="mt-0.5 block text-sm leading-relaxed text-muted-foreground">{notification.message}</span>
+                <span className="mt-1 block text-xs text-muted-foreground">{formatNotificationTime(notification.createdAt, lang)}</span>
               </span>
             </button>
           ))}
@@ -85,4 +118,17 @@ export function NotificationDropdown({
       </div>
     </>
   );
+}
+
+function DropdownState({ label }: { label: string }) {
+  return <div className="px-4 py-8 text-center text-sm text-muted-foreground">{label}</div>;
+}
+
+function formatNotificationTime(value: string, lang: Lang) {
+  return new Intl.DateTimeFormat(lang === "ar" ? "ar-EG" : "en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
 }

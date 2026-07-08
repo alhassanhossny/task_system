@@ -4,7 +4,7 @@ Last updated: 2026-07-08
 
 ## Current Status
 
-Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, Phase 2B Leave Requests Core, Phase 2B.1 Leave Enhancements, Phase 2B.2 Manager Hierarchy & Team Management, Phase 2C Global Search & Productivity Layer, Phase 3 Email Center, Phase 4 Step 8 Super Admin Web Dashboard, and Phase 5 Step 1 CI/CD, Quality Gates & GitHub Actions are implemented.
+Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, Phase 2B Leave Requests Core, Phase 2B.1 Leave Enhancements, Phase 2B.2 Manager Hierarchy & Team Management, Phase 2C Global Search & Productivity Layer, Phase 3 Email Center, Phase 4 Step 8 Super Admin Web Dashboard, Phase 4.5 System Stabilization and Functional QA, and Phase 5 Step 1 CI/CD, Quality Gates & GitHub Actions are implemented.
 
 Current Git state:
 
@@ -17,6 +17,7 @@ Current Git state:
 - Latest Phase 2C work: `Implement Phase 2C global search and productivity layer`.
 - Latest Phase 3 work: `Implement Phase 3 email center`.
 - Latest Phase 4 work: `Prepare v1.0.0-beta release baseline`.
+- Latest Phase 4.5 work: `Phase 4.5 system stabilization and functional QA`.
 - Latest Phase 5 work: `Add Phase 5 CI/CD quality gates and deployment readiness`.
 - Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature-phase5-production-readiness`
 
@@ -1465,6 +1466,130 @@ Recommended next checkpoint:
 - Open a pull request and verify all GitHub Actions complete successfully.
 - Phase 5 Step 2 should focus on production health checks and observability after CI is confirmed on GitHub.
 
+## Phase 4.5 System Stabilization Functional Audit
+
+Step 1 functional audit completed.
+
+Reviewed modules and integration points:
+
+- Authentication shell, session persistence, login routing, and locale switching.
+- Task creation, assignment, status transitions, task events, notifications, search indexing, and task UI create/edit flows.
+- Notifications API, service, dropdown UI, unread badge behavior, and React Query invalidation path.
+- Next.js locale routing, `next-intl` middleware, app layout providers, Zustand-like auth context persistence, and protected app shell redirects.
+- Existing regression test scripts and CI test registration points.
+
+Confirmed stabilization issues:
+
+- Task creation currently uses submitted assignees to immediately create tasks as `ASSIGNED`; the intended workflow requires new tasks to start as `NEW` and move to `ASSIGNED` only through the assignment action.
+- The notification dropdown still uses static sample data, so `Mark all read` never calls `PATCH /api/v1/notifications/read-all` and cannot refresh unread state.
+- Locale switching remounts the app shell before persisted auth has hydrated from `localStorage`; the protected shell can redirect to login even when a valid session exists.
+
+Validation for this checkpoint:
+
+- Audit only; no code validation run before fixes.
+
+Next checkpoint:
+
+- Implement targeted fixes for task creation, notification read state, and locale-session persistence with regression coverage.
+
+Step 2 known bug fixes completed.
+
+Bug fixes implemented:
+
+- Task creation now always creates tasks with status `NEW`; task assignment is only performed through the explicit assignment action, which transitions `NEW -> ASSIGNED` and emits assignment notifications.
+- Task create/edit UI no longer exposes assignee selection during initial task creation, preventing users from accidentally skipping the intended workflow.
+- The notification dropdown now uses the persisted notification API instead of static sample data.
+- `Mark all read` now calls `PATCH /api/v1/notifications/read-all`, invalidates React Query notification caches, refreshes the dropdown, and clears the unread badge.
+- Locale switching now preserves authenticated sessions by waiting for auth storage hydration before protected routes redirect to login.
+
+Files changed in this checkpoint:
+
+- `apps/api/src/tasks/tasks.service.ts`
+- `apps/api/src/tasks/tests/tasks-core.test.ts`
+- `apps/api/src/notifications/tests/notifications.test.ts`
+- `apps/api/package.json`
+- `apps/web/src/features/auth/auth-store.tsx`
+- `apps/web/src/features/auth/tests/session-persistence.test.ts`
+- `apps/web/src/features/app-shell/app-shell.tsx`
+- `apps/web/src/features/app-shell/app-topbar.tsx`
+- `apps/web/src/features/app-shell/notification-dropdown.tsx`
+- `apps/web/src/features/notifications/notifications-service.ts`
+- `apps/web/src/features/tasks/kanban-view.tsx`
+- `apps/web/src/features/tasks/task-widgets.tsx`
+- `apps/web/src/features/tasks/tasks-list-view.tsx`
+- `package.json`
+- `.github/workflows/tests.yml`
+- `.github/workflows/release.yml`
+
+Focused validation:
+
+- `corepack pnpm db:generate` passed.
+- `corepack pnpm typecheck` passed.
+- `corepack pnpm lint` passed.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5544/taskflow?schema=public' corepack pnpm test:tasks-core` passed outside the sandbox due to the known `tsx` IPC pipe restriction.
+- `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5544/taskflow?schema=public' corepack pnpm test:notifications` passed outside the sandbox due to the known `tsx` IPC pipe restriction.
+- `corepack pnpm test:session-persistence` passed outside the sandbox due to the known `tsx` IPC pipe restriction.
+
+Next checkpoint:
+
+- Run broader workflow validation, smoke checks, and complete the functional QA report.
+
+Phase 4.5 completed.
+
+Completed stabilization checkpoints:
+
+- Created `docs/functional-qa-report.md`.
+- Completed focused review of authentication, task workflow, notifications, localization/session behavior, navigation, permissions, API contracts, background queues, and platform routes.
+- Fixed task creation so new tasks start as `NEW` and assignment remains an explicit workflow action.
+- Fixed task create/edit UI so initial creation does not expose assignment while edit continues to use the assignment API.
+- Fixed notification dropdown persistence by replacing static data with API-backed notification queries and read mutations.
+- Fixed locale switching session persistence by adding auth hydration state and preventing protected route redirects before persisted session restoration.
+- Added regression coverage for notifications and session persistence.
+- Updated CI/release regression lists to include the new stabilization tests.
+- Rebuilt Docker API and web images.
+- Recreated the API and web containers in the existing `taskflow_phase5` Docker Compose project.
+
+Validation checkpoint:
+
+- `corepack pnpm db:generate` passed.
+- `corepack pnpm typecheck` passed.
+- `corepack pnpm lint` passed.
+- `corepack pnpm build` passed.
+- Full regression suite passed:
+  - `test:tenant-isolation`
+  - `test:tasks-core`
+  - `test:notifications`
+  - `test:leave-requests-core`
+  - `test:leave-enhancements`
+  - `test:leave-balances`
+  - `test:calendar`
+  - `test:permissions`
+  - `test:team-management`
+  - `test:global-search`
+  - `test:email-center`
+  - `test:platform-company-management`
+  - `test:platform-subscriptions`
+  - `test:platform-company-switching`
+  - `test:platform-analytics`
+  - `test:platform-usage-snapshots`
+  - `test:platform-security`
+  - `test:platform-dashboard`
+  - `test:session-persistence`
+
+Smoke checkpoint:
+
+- Docker API health returned OK at `http://127.0.0.1:4000/api/v1/health`.
+- Login from `http://127.0.0.1:3000` returned success.
+- Notification read-all API returned success.
+- Authenticated task creation returned status `NEW`; the temporary smoke task was deleted.
+- Web route checks returned HTTP 200 for login, dashboard, tasks, leaves, team, email, and platform routes.
+
+Known limitations:
+
+- File attachment binary upload/download remains future work.
+- Task assignment UI remains single-assignee, while the backend supports multiple assignees.
+- Browser-level E2E tests remain future work; this stabilization used regression suites and HTTP smoke checks.
+
 ## Recent Fixes
 
 - Added locale root redirects:
@@ -1488,6 +1613,11 @@ Recommended next checkpoint:
   - `http://127.0.0.1:3000`
   - `http://0.0.0.0:3000`
 - Added `WEB_ORIGIN` to `.env.example` and Docker API environment configuration.
+- Completed Phase 4.5 System Stabilization and Functional QA.
+- Fixed task creation workflow so new tasks start as `NEW`.
+- Replaced static notification dropdown data with persisted API-backed notifications.
+- Fixed notification mark-all-read behavior and unread badge refresh.
+- Fixed locale switching so authenticated users remain signed in.
 
 ## Local Testing
 
@@ -1535,6 +1665,7 @@ corepack pnpm typecheck
 corepack pnpm lint
 corepack pnpm test:tenant-isolation
 corepack pnpm test:tasks-core
+corepack pnpm test:notifications
 corepack pnpm test:leave-requests-core
 corepack pnpm test:leave-enhancements
 corepack pnpm test:leave-balances
@@ -1550,6 +1681,7 @@ corepack pnpm test:platform-analytics
 corepack pnpm test:platform-usage-snapshots
 corepack pnpm test:platform-security
 corepack pnpm test:platform-dashboard
+corepack pnpm test:session-persistence
 ```
 
 Additional local smoke checks completed:
@@ -1647,3 +1779,4 @@ Recent completed commits:
 - `Implement Phase 4 super admin web dashboard`
 - `Add Phase 5 GitHub Actions CI/CD pipeline`
 - `Add Phase 5 CI/CD quality gates and deployment readiness`
+- `Phase 4.5 system stabilization and functional QA`
