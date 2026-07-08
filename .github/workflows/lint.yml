@@ -1,0 +1,42 @@
+name: Lint
+
+on:
+  push:
+    branches:
+      - main
+      - "feature-*"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Typecheck and Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Prisma generate
+        run: corepack pnpm db:generate
+
+      - name: Typecheck
+        run: corepack pnpm typecheck
+
+      - name: Repository lint
+        run: corepack pnpm lint

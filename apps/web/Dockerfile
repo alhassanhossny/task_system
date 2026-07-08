@@ -3,12 +3,15 @@ RUN corepack enable
 WORKDIR /app
 
 FROM base AS deps
-COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages packages
-RUN pnpm install --filter @taskflow/web... --frozen-lockfile=false
+RUN pnpm install --filter @taskflow/web... --frozen-lockfile
 
 FROM deps AS build
+ARG NEXT_PUBLIC_API_URL=http://localhost:4000
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 COPY apps/web apps/web
 RUN pnpm --filter @taskflow/web build
 
@@ -20,6 +23,6 @@ COPY --from=deps /app/apps/web/node_modules apps/web/node_modules
 COPY --from=build /app/apps/web/.next apps/web/.next
 COPY --from=build /app/apps/web/public apps/web/public
 COPY apps/web/package.json apps/web/package.json
-COPY package.json pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 EXPOSE 3000
 CMD ["pnpm", "--dir", "apps/web", "start"]

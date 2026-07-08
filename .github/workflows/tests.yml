@@ -1,19 +1,21 @@
-name: Release
+name: Regression Tests
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+      - "feature-*"
+  pull_request:
 
 permissions:
   contents: read
 
 env:
   DATABASE_URL: postgresql://taskflow:taskflow@localhost:5432/taskflow?schema=public
-  JWT_SECRET: release-jwt-secret-minimum-32-characters
+  JWT_SECRET: tests-jwt-secret-minimum-32-characters
   JWT_EXPIRES_IN: 15m
   JWT_REFRESH_EXPIRES_IN: 7d
-  SMTP_ENCRYPTION_KEY: release-smtp-key-minimum-32-chars
+  SMTP_ENCRYPTION_KEY: tests-smtp-key-minimum-32-characters
   STORAGE_PUBLIC_BASE_URL: http://localhost:4000/storage
   NEXT_PUBLIC_API_URL: http://localhost:4000
   WEB_ORIGIN: http://localhost:3000,http://127.0.0.1:3000,http://0.0.0.0:3000
@@ -22,10 +24,10 @@ env:
   REDIS_DB: "0"
 
 jobs:
-  release-artifacts:
-    name: Validate and Build Release
+  tests:
+    name: Regression Suite
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 35
 
     services:
       postgres:
@@ -73,9 +75,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
-          key: ${{ runner.os }}-release-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-tests-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-release-pnpm-
+            ${{ runner.os }}-tests-pnpm-
             ${{ runner.os }}-pnpm-
 
       - name: Cache Prisma engines
@@ -85,16 +87,16 @@ jobs:
             ~/.cache/prisma
             node_modules/.prisma
             apps/api/node_modules/.prisma
-          key: ${{ runner.os }}-release-prisma-${{ hashFiles('apps/api/prisma/schema.prisma', 'pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-tests-prisma-${{ hashFiles('apps/api/prisma/schema.prisma', 'pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-release-prisma-
+            ${{ runner.os }}-tests-prisma-
             ${{ runner.os }}-prisma-
 
       - name: Install dependencies
         run: corepack pnpm install --frozen-lockfile
 
-      - name: Prepare artifacts
-        run: mkdir -p artifacts/release-logs
+      - name: Prepare test logs
+        run: mkdir -p artifacts/test-logs
 
       - name: Prisma generate
         run: corepack pnpm db:generate
@@ -104,12 +106,6 @@ jobs:
 
       - name: Seed database
         run: corepack pnpm db:seed
-
-      - name: Typecheck
-        run: corepack pnpm typecheck
-
-      - name: Repository lint
-        run: corepack pnpm lint
 
       - name: Run regression tests
         shell: bash
@@ -137,41 +133,24 @@ jobs:
 
           for test_name in "${tests[@]}"; do
             log_name="${test_name//:/-}.log"
-            corepack pnpm "$test_name" 2>&1 | tee "artifacts/release-logs/${log_name}"
+            corepack pnpm "$test_name" 2>&1 | tee "artifacts/test-logs/${log_name}"
           done
 
-      - name: Build project
-        shell: bash
-        run: |
-          set -o pipefail
-          corepack pnpm build 2>&1 | tee artifacts/release-logs/build.log
-
-      - name: Upload release logs
+      - name: Upload test logs
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: release-logs
-          path: artifacts/release-logs
+          name: regression-test-logs
+          path: artifacts/test-logs
           if-no-files-found: ignore
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: release-coverage
+          name: regression-coverage
           path: |
             coverage
             apps/**/coverage
             packages/**/coverage
           if-no-files-found: ignore
-
-      - name: Upload production artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: taskflow-production-artifacts
-          path: |
-            apps/api/dist
-            apps/web/.next
-            packages/**/dist
-          if-no-files-found: error
-          retention-days: 14

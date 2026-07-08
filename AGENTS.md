@@ -19,7 +19,7 @@ feature-phase5-production-readiness
 
 Current milestone:
 
-- Phase 5 Step 1 GitHub Actions CI/CD Pipeline is complete.
+- Phase 5 Step 1 CI/CD, Quality Gates & GitHub Actions is complete.
 - Phase 4 Step 8 Super Admin Web Dashboard is complete.
 - Platform Analytics Improvements Step 1 completed the usage snapshot worker and scheduler pipeline.
 - Platform Analytics Improvements Step 2 optimized analytics and usage snapshot queries.
@@ -209,16 +209,24 @@ Next recommended scope:
 
 Completed Phase 5 milestones:
 
-- Step 1: GitHub Actions CI/CD Pipeline.
+- Step 1: CI/CD, Quality Gates & GitHub Actions.
 
 Step 1 added:
 
 - `.github/workflows/ci.yml`
+- `.github/workflows/lint.yml`
+- `.github/workflows/tests.yml`
+- `.github/workflows/security.yml`
 - `.github/workflows/release.yml`
-- `.github/workflows/dependency-review.yml`
-- `.github/workflows/codeql.yml`
+- `.github/dependabot.yml`
 - PostgreSQL and Redis CI service containers
+- Docker Compose build and readiness verification
 - pnpm and Prisma cache configuration
+- dependency review, pnpm audit, npm-audit compatibility check, secret pattern scan, Gitleaks, and CodeQL
+- documented environment variables in `.env.example`
+- startup environment validation in the API
+- Docker health checks for API and web
+- `docs/deployment.md`
 - test log, optional coverage, and build-output artifacts
 - CI/release validation for Prisma generate, migrations, seed, typecheck, lint, regression tests, and production build
 

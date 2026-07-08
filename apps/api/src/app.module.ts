@@ -11,6 +11,7 @@ import { PermissionsGuard } from "./common/guards/permissions.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
 import { TenantGuard } from "./common/guards/tenant.guard";
 import { CompaniesModule } from "./companies/companies.module";
+import { validateEnv } from "./config/env.validation";
 import { DepartmentsModule } from "./departments/departments.module";
 import { DomainEventsModule } from "./domain-events/domain-events.module";
 import { EmailProvidersModule } from "./email-providers/email-providers.module";
@@ -30,7 +31,7 @@ import { UsersModule } from "./users/users.module";
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     DomainEventsModule,
     PrismaModule,
     HealthModule,

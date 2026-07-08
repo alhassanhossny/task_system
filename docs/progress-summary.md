@@ -1,10 +1,10 @@
 # Progress Summary
 
-Last updated: 2026-07-07
+Last updated: 2026-07-08
 
 ## Current Status
 
-Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, Phase 2B Leave Requests Core, Phase 2B.1 Leave Enhancements, Phase 2B.2 Manager Hierarchy & Team Management, Phase 2C Global Search & Productivity Layer, Phase 3 Email Center, Phase 4 Step 8 Super Admin Web Dashboard, and Phase 5 Step 1 GitHub Actions CI/CD Pipeline are implemented.
+Phase 1 foundation, Phase 1.5 architecture safeguards, Phase 2A Task Core, Phase 2B Leave Requests Core, Phase 2B.1 Leave Enhancements, Phase 2B.2 Manager Hierarchy & Team Management, Phase 2C Global Search & Productivity Layer, Phase 3 Email Center, Phase 4 Step 8 Super Admin Web Dashboard, and Phase 5 Step 1 CI/CD, Quality Gates & GitHub Actions are implemented.
 
 Current Git state:
 
@@ -17,8 +17,8 @@ Current Git state:
 - Latest Phase 2C work: `Implement Phase 2C global search and productivity layer`.
 - Latest Phase 3 work: `Implement Phase 3 email center`.
 - Latest Phase 4 work: `Prepare v1.0.0-beta release baseline`.
-- Latest Phase 5 work: `Add Phase 5 GitHub Actions CI/CD pipeline`.
-- Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature-super-admin-portal`
+- Latest Phase 5 work: `Add Phase 5 CI/CD quality gates and deployment readiness`.
+- Pull request URL: `https://github.com/alhassanhossny/task_system/pull/new/feature-phase5-production-readiness`
 
 The repository now contains:
 
@@ -1308,78 +1308,110 @@ Super Admin feature coverage check:
   - `/ar/platform` returned HTTP 200.
   - `/ar/employees` returned HTTP 200, but remains tenant/prototype UI as noted above.
 
-## Implemented Phase 5 Step 1 GitHub Actions CI/CD Pipeline
+## Implemented Phase 5 Step 1 CI/CD, Quality Gates & GitHub Actions
 
 Implemented on branch `feature-phase5-production-readiness`.
 
 Completed checkpoints:
 
-- Created GitHub workflow directory:
-  - `.github/workflows/`
-- Added CI workflow:
+- Reworked GitHub Actions into production-readiness quality gates:
   - `.github/workflows/ci.yml`
-  - runs on `push`
-  - runs on `pull_request`
-  - installs dependencies with Corepack and pnpm
-  - generates Prisma Client
-  - applies frozen migrations with `prisma migrate deploy`
-  - seeds the database
-  - runs typecheck
-  - runs lint
-  - runs the full regression suite
-  - runs production build
-- Added release artifact workflow:
+  - `.github/workflows/lint.yml`
+  - `.github/workflows/tests.yml`
+  - `.github/workflows/security.yml`
   - `.github/workflows/release.yml`
-  - runs on tags matching `v*`
-  - validates the project
-  - builds production artifacts
-  - uploads release-ready build output
+  - `.github/dependabot.yml`
+- CI workflow now includes:
+  - Node.js matrix for `20.x` and `22.x`
+  - Corepack and pnpm install with frozen lockfile
+  - pnpm store caching
+  - Prisma engine/client caching
+  - Prisma generate
+  - migration deploy against PostgreSQL service container
+  - database seed
+  - typecheck
+  - lint
+  - package, API, and web builds
+  - Docker Compose production build and readiness verification
+- Regression tests workflow now runs the complete suite:
+  - tenant isolation
+  - tasks
+  - leave requests
+  - leave enhancements
+  - leave balances
+  - calendar
+  - permissions
+  - team management
+  - global search
+  - email center
+  - platform company management
+  - platform subscriptions
+  - platform company switching
+  - platform analytics
+  - platform usage snapshots
+  - platform security
+  - platform dashboard
+- Security workflow now includes:
+  - `pnpm audit --audit-level high`
+  - npm-audit compatibility check that skips when no `package-lock.json` exists
+  - secret pattern scan for GitHub token patterns
+  - Gitleaks
+  - dependency review on pull requests
+  - CodeQL for JavaScript/TypeScript
+- Dependabot now tracks:
+  - npm/pnpm workspace dependencies
+  - GitHub Actions
+- Release workflow now runs on `v*` tags and:
+  - validates migrations, seed, typecheck, lint, regression tests, and production build
+  - uploads release logs
+  - uploads optional coverage artifacts
+  - uploads production build artifacts
   - does not deploy
-- Added dependency review workflow:
-  - `.github/workflows/dependency-review.yml`
-  - runs on pull requests
-  - uses GitHub dependency review
-- Added CodeQL workflow:
-  - `.github/workflows/codeql.yml`
-  - covers JavaScript and TypeScript
-  - runs on push, pull request, and weekly schedule
-- Configured CI service containers:
-  - PostgreSQL 16
-  - Redis 7
-  - health checks for both services
-- Configured caches:
-  - pnpm store cache keyed by `pnpm-lock.yaml`
-  - Prisma engine/client cache keyed by `apps/api/prisma/schema.prisma` and `pnpm-lock.yaml`
-- Configured artifacts:
-  - CI test logs
-  - CI build output
-  - optional coverage artifacts when coverage files exist
-  - release test logs
-  - release build output
-  - optional release coverage artifacts when coverage files exist
-- Preserved existing architecture:
+- Added deployment readiness documentation:
+  - `docs/deployment.md`
+  - production deployment checklist
+  - environment variable reference
+  - Docker deployment commands
+  - reverse proxy example
+  - HTTPS notes
+  - backup guidance
+  - rolling update process
+- Improved environment handling:
+  - documented all variables in `.env.example`
+  - added `POSTGRES_PORT` for local Docker port control
+  - added API startup validation for required environment values
+- Improved Docker production verification:
+  - API and web Dockerfiles now use `pnpm-lock.yaml` with `--frozen-lockfile`
+  - API runtime image now copies generated Prisma client output from the build stage
+  - web Dockerfile now accepts `NEXT_PUBLIC_API_URL` as a build argument
+  - added tracked `apps/web/public/.gitkeep` so the standard Next.js public runtime path exists
+  - Docker Compose health checks now cover API and web
+  - Docker Compose separates host ports from internal container ports
+  - PostgreSQL host port is configurable through `POSTGRES_PORT`
+- Addressed the high-severity audit gate:
+  - added root pnpm override for `multer@^2.2.0`
+  - refreshed `pnpm-lock.yaml`
+  - `pnpm audit --audit-level high` now passes
+- Preserved existing behavior:
   - no business features added
   - no public API contracts changed
   - no Prisma schema changes
   - no existing Prisma migrations modified
-- Added minimal production build fix discovered during validation:
-  - wrapped `EmailView`, `LeavesView`, and `TasksListView` page entries in React `Suspense`
-  - resolves Next.js 15 production build requirement for client components using `useSearchParams`
-  - no UI behavior change intended
-- Hardened an existing regression cleanup race:
-  - `test:leave-enhancements` now performs a final `searchIndex` cleanup before deleting its test company
-  - prevents late async event side effects from causing a foreign-key cleanup failure
 
 Validation checkpoint:
 
-- Workflow YAML parsed successfully:
+- Workflow and Dependabot YAML parsed successfully:
   - `.github/workflows/ci.yml`
+  - `.github/workflows/lint.yml`
+  - `.github/workflows/tests.yml`
+  - `.github/workflows/security.yml`
   - `.github/workflows/release.yml`
-  - `.github/workflows/dependency-review.yml`
-  - `.github/workflows/codeql.yml`
+  - `.github/dependabot.yml`
 - `corepack pnpm db:generate` passed.
 - `corepack pnpm typecheck` passed.
 - `corepack pnpm lint` passed.
+- `corepack pnpm build` passed.
+- `corepack pnpm audit --audit-level high` passed.
 - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tenant-isolation` passed outside the sandbox after the known `tsx` IPC sandbox limitation.
 - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:tasks-core` passed outside the sandbox.
 - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:leave-requests-core` passed outside the sandbox.
@@ -1397,7 +1429,18 @@ Validation checkpoint:
 - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-usage-snapshots` passed outside the sandbox.
 - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-security` passed outside the sandbox.
 - `DATABASE_URL='postgresql://taskflow:taskflow@127.0.0.1:5433/taskflow?schema=public' corepack pnpm test:platform-dashboard` passed outside the sandbox.
-- `corepack pnpm build` passed.
+- Docker validation passed:
+  - `docker compose build api web` passed with frozen lockfile dependency installation.
+  - `docker compose up -d postgres redis api web` passed.
+  - PostgreSQL service was healthy.
+  - Redis service was healthy.
+  - API service was healthy.
+  - Web service was healthy.
+  - `GET http://127.0.0.1:4000/api/v1/health` returned `{"status":"ok"}`.
+  - `HEAD http://127.0.0.1:3000/ar/login` returned HTTP 200.
+  - Docker database migrations were applied successfully.
+  - Docker database seed completed successfully.
+  - Docker login smoke test for `admin@company.com` returned HTTP 201.
 
 Known limitations:
 
@@ -1405,12 +1448,22 @@ Known limitations:
 - Coverage artifacts are configured with `if-no-files-found: ignore` because current test scripts do not generate coverage by default.
 - Release workflow uploads build artifacts only; deployment remains intentionally out of scope.
 - The local sandbox blocks `tsx` IPC pipes under `/tmp/tsx-*`; regression tests were rerun outside the sandbox per `AGENTS.md`.
+- `pnpm audit --audit-level high` passes; four moderate advisories remain for later dependency review.
+- Gitleaks and CodeQL are configured in GitHub Actions but were not run locally.
+
+Current local Docker stack:
+
+- Web: `http://127.0.0.1:3000/ar/login`
+- API: `http://127.0.0.1:4000/api/v1`
+- API health: `http://127.0.0.1:4000/api/v1/health`
+- PostgreSQL host port: `5544`
+- Redis host port: `6381`
 
 Recommended next checkpoint:
 
 - Push `feature-phase5-production-readiness` to GitHub.
 - Open a pull request and verify all GitHub Actions complete successfully.
-- Phase 5 Step 2 should focus on production health checks and observability after CI is confirmed.
+- Phase 5 Step 2 should focus on production health checks and observability after CI is confirmed on GitHub.
 
 ## Recent Fixes
 
@@ -1458,6 +1511,15 @@ Current development URLs:
 - Arabic platform switch sessions: `http://localhost:3000/ar/platform/switch-sessions`
 - API docs: `http://localhost:4000/docs`
 - API base: `http://localhost:4000/api/v1`
+- API health: `http://localhost:4000/api/v1/health`
+
+Current Docker verification stack:
+
+- Web: `http://127.0.0.1:3000/ar/login`
+- API: `http://127.0.0.1:4000/api/v1`
+- API health: `http://127.0.0.1:4000/api/v1/health`
+- PostgreSQL host port: `5544`
+- Redis host port: `6381`
 
 Seed login:
 
@@ -1546,7 +1608,8 @@ The following work remains after the `v1.0.0-beta` baseline:
   - user status management
   - password reset/admin reset support
 - Phase 5 production readiness:
-  - GitHub Actions pull request verification
+  - GitHub Actions pull request verification on GitHub
+  - GitHub Release creation from `v1.0.0-beta` if not already created
   - branch protection
   - monitoring and health checks
   - structured logging
@@ -1583,3 +1646,4 @@ Recent completed commits:
 - `Add platform endpoint authorization tests`
 - `Implement Phase 4 super admin web dashboard`
 - `Add Phase 5 GitHub Actions CI/CD pipeline`
+- `Add Phase 5 CI/CD quality gates and deployment readiness`

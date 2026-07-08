@@ -1,0 +1,92 @@
+name: Security
+
+on:
+  push:
+    branches:
+      - main
+      - "feature-*"
+  pull_request:
+  schedule:
+    - cron: "30 2 * * 1"
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+  security-events: write
+
+jobs:
+  audit:
+    name: Dependency and Secret Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: pnpm
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: pnpm audit
+        run: corepack pnpm audit --audit-level high
+
+      - name: npm audit compatibility check
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then
+            npm audit --audit-level=high
+          else
+            echo "::notice::Skipping npm audit because this repository uses pnpm-lock.yaml instead of package-lock.json."
+          fi
+
+      - name: Secret pattern scan
+        shell: bash
+        run: |
+          if git grep -nE 'g[h]p_|github_[p]at' -- . ':!.git'; then
+            echo "Potential GitHub token pattern found."
+            exit 1
+          fi
+
+      - name: Gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@v4
+
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
