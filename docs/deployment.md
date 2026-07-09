@@ -94,10 +94,23 @@ docker compose up -d postgres redis api web
 
 After that, Docker should restart the containers automatically after reboot unless they were manually stopped.
 
-For this workspace, if you are using the existing `taskflow_phase5` Compose project name and PostgreSQL/Redis mapped to ports `5544` and `6381`, use:
+For this workspace, if you are using the existing `taskflow_phase5` Compose project name, keep a local ignored `.env` with `POSTGRES_PORT=5544` if port `5432` is already used by a local PostgreSQL service. The current local stack maps Redis to `6379`.
 
 ```bash
 docker compose -p taskflow_phase5 up -d postgres redis api web
+```
+
+If login returns HTTP 500 and the API logs show `Can't reach database server at postgres:5432`, verify that the `taskflow-postgres` container is running and attached to the same Compose network:
+
+```bash
+docker ps --format '{{.Names}} {{.Status}} {{.Ports}}'
+docker inspect taskflow-postgres --format '{{json .NetworkSettings.Networks}}'
+```
+
+Then recreate Postgres with the local non-conflicting host port:
+
+```bash
+POSTGRES_PORT=5544 docker compose -p taskflow_phase5 up -d --force-recreate postgres
 ```
 
 ## Reverse Proxy Example

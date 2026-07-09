@@ -1458,7 +1458,7 @@ Current local Docker stack:
 - API: `http://127.0.0.1:4000/api/v1`
 - API health: `http://127.0.0.1:4000/api/v1/health`
 - PostgreSQL host port: `5544`
-- Redis host port: `6381`
+- Redis host port: `6379`
 
 Recommended next checkpoint:
 
@@ -1625,6 +1625,9 @@ Known limitations:
 - Confirmed API and web are currently healthy:
   - API: `http://127.0.0.1:4000/api/v1/health`
   - Web: `http://127.0.0.1:3000/ar/login`
+- Fixed post-sleep login HTTP 500 caused by `taskflow-postgres` being created but not running on the API Compose network.
+- Recreated `taskflow-postgres` with `POSTGRES_PORT=5544`, confirmed it is healthy and attached to `taskflow_phase5_default`, then verified login returns HTTP 201.
+- Added a local ignored `.env` with `POSTGRES_PORT=5544` so future Compose operations avoid the machine's occupied local `5432` port.
 
 ## Local Testing
 
@@ -1656,7 +1659,7 @@ Current Docker verification stack:
 - API: `http://127.0.0.1:4000/api/v1`
 - API health: `http://127.0.0.1:4000/api/v1/health`
 - PostgreSQL host port: `5544`
-- Redis host port: `6381`
+- Redis host port: `6379`
 - API, web, PostgreSQL, and Redis containers now use Docker restart policies for local auto-recovery after Docker daemon or system restart.
 
 Seed login:
