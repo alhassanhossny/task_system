@@ -1618,6 +1618,13 @@ Known limitations:
 - Replaced static notification dropdown data with persisted API-backed notifications.
 - Fixed notification mark-all-read behavior and unread badge refresh.
 - Fixed locale switching so authenticated users remain signed in.
+- Added Docker auto-restart policy for API and web services so the full local stack restarts after Docker daemon or system reboot.
+- Documented local auto-start setup in `docs/deployment.md`.
+- Recreated the local `taskflow_phase5` API and web containers to apply `restart: unless-stopped`.
+- Confirmed Docker is enabled at boot with `systemctl is-enabled docker`.
+- Confirmed API and web are currently healthy:
+  - API: `http://127.0.0.1:4000/api/v1/health`
+  - Web: `http://127.0.0.1:3000/ar/login`
 
 ## Local Testing
 
@@ -1650,6 +1657,7 @@ Current Docker verification stack:
 - API health: `http://127.0.0.1:4000/api/v1/health`
 - PostgreSQL host port: `5544`
 - Redis host port: `6381`
+- API, web, PostgreSQL, and Redis containers now use Docker restart policies for local auto-recovery after Docker daemon or system restart.
 
 Seed login:
 

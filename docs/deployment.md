@@ -70,6 +70,36 @@ curl -fsSI http://127.0.0.1:${WEB_PORT:-3000}/ar/login
 
 The Compose stack declares health checks for PostgreSQL, Redis, API, and web. The web service waits for the API health check before starting.
 
+## Local Auto-Start After Reboot
+
+The Compose services use Docker restart policies so the stack can recover after a machine restart or Docker daemon restart:
+
+- PostgreSQL: `restart: unless-stopped`
+- Redis: `restart: unless-stopped`
+- API: `restart: unless-stopped`
+- Web: `restart: unless-stopped`
+
+Make sure Docker itself starts on boot:
+
+```bash
+sudo systemctl enable docker
+sudo systemctl start docker
+```
+
+Then create or refresh the containers once:
+
+```bash
+docker compose up -d postgres redis api web
+```
+
+After that, Docker should restart the containers automatically after reboot unless they were manually stopped.
+
+For this workspace, if you are using the existing `taskflow_phase5` Compose project name and PostgreSQL/Redis mapped to ports `5544` and `6381`, use:
+
+```bash
+docker compose -p taskflow_phase5 up -d postgres redis api web
+```
+
 ## Reverse Proxy Example
 
 Example Nginx server blocks:
