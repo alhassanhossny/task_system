@@ -7,7 +7,7 @@
     "dev": "corepack pnpm --parallel --filter @taskflow/web --filter @taskflow/api dev",
     "dev:web": "corepack pnpm --filter @taskflow/web dev",
     "dev:api": "corepack pnpm --filter @taskflow/api dev",
-    "build": "prisma generate --schema prisma/schema.prisma && nest build",
+    "build": "corepack pnpm db:generate && corepack pnpm -r build",
     "typecheck": "corepack pnpm -r typecheck",
     "lint": "corepack pnpm -r lint",
     "test:tenant-isolation": "corepack pnpm --filter @taskflow/api test:tenant-isolation",
